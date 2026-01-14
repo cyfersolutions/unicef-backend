@@ -1,0 +1,10 @@
+export enum RuleContext {
+  LESSON = 'LESSON',
+  UNIT = 'UNIT',
+  MODULE = 'MODULE',
+  QUESTION = 'QUESTION',
+  DAILY_PRACTICE = 'DAILY_PRACTICE',
+  STREAK = 'STREAK',
+  DAILY_GOAL = 'DAILY_GOAL',
+}
+

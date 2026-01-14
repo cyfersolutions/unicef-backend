@@ -1,0 +1,6 @@
+export enum BadgeConditionType {
+  TOTAL_XP = 'TOTAL_XP',
+  TOTAL_LEVELS_COMPLETED = 'TOTAL_LEVELS_COMPLETED',
+  FIRST_TIME = 'FIRST_TIME',
+}
+

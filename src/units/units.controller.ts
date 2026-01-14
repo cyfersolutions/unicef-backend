@@ -1,0 +1,112 @@
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { UnitsService } from './units.service';
+import { LessonsService } from '../lessons/lessons.service';
+import { CreateUnitDto } from './dto/create-unit.dto';
+import { UpdateUnitDto } from './dto/update-unit.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { RequireRoles } from '../auth/decorators/roles.decorator';
+
+@ApiTags('units')
+@Controller('units')
+export class UnitsController {
+  constructor(
+    private readonly unitsService: UnitsService,
+    private readonly lessonsService: LessonsService,
+  ) {}
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles('superadmin', 'admin')
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new unit (superadmin/admin only)' })
+  @ApiResponse({ status: 201, description: 'Unit created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only superadmin/admin can create units' })
+  @ApiResponse({ status: 404, description: 'Module not found' })
+  create(@Body() createUnitDto: CreateUnitDto) {
+    return this.unitsService.create(createUnitDto);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all units (authenticated users)' })
+  @ApiQuery({ name: 'moduleId', required: false, description: 'Filter units by module ID' })
+  @ApiResponse({ status: 200, description: 'List of units' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  findAll(@Query('moduleId') moduleId?: string) {
+    return this.unitsService.findAll(moduleId);
+  }
+
+  @Get(':unitId/lessons')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get lessons by unit ID (authenticated users)' })
+  @ApiParam({ name: 'unitId', description: 'Unit UUID' })
+  @ApiResponse({ status: 200, description: 'List of lessons for the unit' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getLessonsByUnitId(@Param('unitId') unitId: string) {
+    return this.lessonsService.findAll(unitId);
+  }
+
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get unit by ID (authenticated users)' })
+  @ApiParam({ name: 'id', description: 'Unit UUID' })
+  @ApiResponse({ status: 200, description: 'Unit found' })
+  @ApiResponse({ status: 404, description: 'Unit not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  findOne(@Param('id') id: string) {
+    return this.unitsService.findOne(id);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles('superadmin', 'admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update unit (superadmin/admin only)' })
+  @ApiParam({ name: 'id', description: 'Unit UUID' })
+  @ApiResponse({ status: 200, description: 'Unit updated successfully' })
+  @ApiResponse({ status: 404, description: 'Unit not found' })
+  @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only superadmin/admin can update units' })
+  update(@Param('id') id: string, @Body() updateUnitDto: UpdateUnitDto) {
+    return this.unitsService.update(id, updateUnitDto);
+  }
+
+  @Patch(':id/order')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles('superadmin', 'admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update unit order number (superadmin/admin only)' })
+  @ApiParam({ name: 'id', description: 'Unit UUID' })
+  @ApiResponse({ status: 200, description: 'Unit order updated successfully' })
+  @ApiResponse({ status: 404, description: 'Unit not found' })
+  @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only superadmin/admin can update unit order' })
+  updateOrder(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
+    return this.unitsService.updateOrder(id, updateOrderDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles('superadmin', 'admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete unit (superadmin/admin only)' })
+  @ApiParam({ name: 'id', description: 'Unit UUID' })
+  @ApiResponse({ status: 200, description: 'Unit deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Unit not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only superadmin/admin can delete units' })
+  remove(@Param('id') id: string) {
+    return this.unitsService.remove(id);
+  }
+}
