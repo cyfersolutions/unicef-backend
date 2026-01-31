@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
+import { createForeignKeyIfNotExists } from '../database/migration-helpers';
 
 export class CreateAdminsTable20260108141053 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -49,9 +50,11 @@ export class CreateAdminsTable20260108141053 implements MigrationInterface {
       true,
     );
 
-    await queryRunner.createForeignKey(
+    await createForeignKeyIfNotExists(
+      queryRunner,
       'admins',
       new TableForeignKey({
+        name: 'FK_admins_role_id',
         columnNames: ['role_id'],
         referencedColumnNames: ['id'],
         referencedTableName: 'roles',

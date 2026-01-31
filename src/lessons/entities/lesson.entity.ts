@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Unit } from '../../units/entities/unit.entity';
+import { LessonQuestion } from './lesson-question.entity';
 
 @Entity('lessons')
 export class Lesson {
@@ -11,6 +12,9 @@ export class Lesson {
 
   @Column({ type: 'text', nullable: true })
   description: string;
+
+  @Column({ type: 'text', nullable: true, name: 'icon_url' })
+  iconUrl: string | null;
 
   @Column({ type: 'int', nullable: true, name: 'order_no' })
   orderNo: number;
@@ -33,5 +37,8 @@ export class Lesson {
   @ManyToOne(() => Unit, (unit) => unit.lessons)
   @JoinColumn({ name: 'unit_id' })
   unit: Unit;
+
+  @OneToMany(() => LessonQuestion, (lessonQuestion) => lessonQuestion.lesson)
+  lessonQuestions: LessonQuestion[];
 }
 

@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
+import { createForeignKeyIfNotExists } from '../database/migration-helpers';
 
 export class CreateAdminPermissionsTable20260108141054 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -28,9 +29,11 @@ export class CreateAdminPermissionsTable20260108141054 implements MigrationInter
       true,
     );
 
-    await queryRunner.createForeignKey(
+    await createForeignKeyIfNotExists(
+      queryRunner,
       'admin_permissions',
       new TableForeignKey({
+        name: 'FK_admin_permissions_admin_id',
         columnNames: ['admin_id'],
         referencedColumnNames: ['id'],
         referencedTableName: 'admins',
@@ -38,9 +41,11 @@ export class CreateAdminPermissionsTable20260108141054 implements MigrationInter
       }),
     );
 
-    await queryRunner.createForeignKey(
+    await createForeignKeyIfNotExists(
+      queryRunner,
       'admin_permissions',
       new TableForeignKey({
+        name: 'FK_admin_permissions_permission_id',
         columnNames: ['permission_id'],
         referencedColumnNames: ['id'],
         referencedTableName: 'permissions',

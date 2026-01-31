@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Question } from './entities/question.entity';
+import { LessonQuestion } from '../lessons/entities/lesson-question.entity';
+import { Lesson } from '../lessons/entities/lesson.entity';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 
@@ -10,48 +12,78 @@ export class QuestionsService {
   constructor(
     @InjectRepository(Question)
     private questionRepository: Repository<Question>,
+    @InjectRepository(LessonQuestion)
+    private lessonQuestionRepository: Repository<LessonQuestion>,
+    @InjectRepository(Lesson)
+    private lessonRepository: Repository<Lesson>,
   ) {}
 
   async create(createQuestionDto: CreateQuestionDto) {
-    // If lessonId and orderNo are provided, check for uniqueness
-    if (createQuestionDto.lessonId && createQuestionDto.orderNo !== null && createQuestionDto.orderNo !== undefined) {
-      const existing = await this.questionRepository.findOne({
-        where: {
-          lessonId: createQuestionDto.lessonId,
-          orderNo: createQuestionDto.orderNo,
-        },
+    // Extract lessonId and orderNo before creating question
+    const { lessonId, orderNo, ...questionData } = createQuestionDto;
+
+    // Create the question
+    const question = this.questionRepository.create(questionData);
+    const savedQuestion = await this.questionRepository.save(question);
+
+    // If lessonId is provided, create the lesson_question relationship
+    if (lessonId) {
+      // Validate that lesson exists
+      const lesson = await this.lessonRepository.findOne({
+        where: { id: lessonId },
+      });
+
+      if (!lesson) {
+        throw new NotFoundException(`Lesson with id ${lessonId} not found`);
+      }
+
+      // Validate orderNo is provided when lessonId is provided
+      if (orderNo === null || orderNo === undefined) {
+        throw new BadRequestException('Order number is required when lessonId is provided');
+      }
+
+      // Check if question is already in this lesson
+      const existing = await this.lessonQuestionRepository.findOne({
+        where: { lessonId, questionId: savedQuestion.id },
       });
 
       if (existing) {
-        throw new BadRequestException(
-          `Question with order number ${createQuestionDto.orderNo} already exists for this lesson`,
-        );
+        throw new BadRequestException('Question is already added to this lesson');
       }
+
+      // Check if orderNo already exists for this lesson
+      const existingOrder = await this.lessonQuestionRepository.findOne({
+        where: { lessonId, orderNo },
+      });
+
+      if (existingOrder) {
+        throw new BadRequestException(`Order number ${orderNo} already exists for this lesson`);
+      }
+
+      // Create lesson_question relationship
+      const lessonQuestion = this.lessonQuestionRepository.create({
+        lessonId,
+        questionId: savedQuestion.id,
+        orderNo,
+      });
+
+      await this.lessonQuestionRepository.save(lessonQuestion);
     }
 
-    const question = this.questionRepository.create(createQuestionDto);
-    return await this.questionRepository.save(question);
+    return savedQuestion;
   }
 
   async findAll() {
     return await this.questionRepository.find({
-      relations: ['lesson', 'persona'],
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async findByLessonId(lessonId: string) {
-    return await this.questionRepository.find({
-      where: { lessonId },
       relations: ['persona'],
-      order: { orderNo: 'ASC' },
+      order: { createdAt: 'DESC' },
     });
   }
 
   async findOne(id: string) {
     const question = await this.questionRepository.findOne({
       where: { id },
-      relations: ['lesson', 'persona'],
+      relations: ['persona'],
     });
 
     if (!question) {
@@ -62,22 +94,6 @@ export class QuestionsService {
   }
 
   async update(id: string, updateQuestionDto: UpdateQuestionDto) {
-    // If lessonId and orderNo are being updated, check for uniqueness
-    if (updateQuestionDto.lessonId && updateQuestionDto.orderNo !== null && updateQuestionDto.orderNo !== undefined) {
-      const existing = await this.questionRepository.findOne({
-        where: {
-          lessonId: updateQuestionDto.lessonId,
-          orderNo: updateQuestionDto.orderNo,
-        },
-      });
-
-      if (existing && existing.id !== id) {
-        throw new BadRequestException(
-          `Question with order number ${updateQuestionDto.orderNo} already exists for this lesson`,
-        );
-      }
-    }
-
     await this.questionRepository.update(id, updateQuestionDto);
     return this.findOne(id);
   }

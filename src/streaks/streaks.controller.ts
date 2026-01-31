@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@ne
 import { StreaksService } from './streaks.service';
 import { CreateStreakDto } from './dto/create-streak.dto';
 import { UpdateStreakDto } from './dto/update-streak.dto';
+import { SubmitStreakProgressDto } from './dto/submit-streak-progress.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { XPManagementGuard } from '../auth/guards/xp-management.guard';
 
@@ -71,5 +72,21 @@ export class StreaksController {
   @ApiResponse({ status: 403, description: 'Forbidden - Only superadmin or admin with XP_MANAGEMENT permission can delete streaks' })
   remove(@Param('id') id: string) {
     return this.streaksService.remove(id);
+  }
+
+  @Post('progress')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Submit streak progress' })
+  @ApiResponse({
+    status: 202,
+    description: 'Streak progress submitted successfully, processing in background',
+  })
+  @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+  @ApiResponse({ status: 404, description: 'Streak progress not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async submitStreakProgress(@Body() dto: SubmitStreakProgressDto) {
+    return this.streaksService.submitStreakProgress(dto);
   }
 }

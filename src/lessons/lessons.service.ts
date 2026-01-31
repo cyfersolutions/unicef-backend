@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Lesson } from './entities/lesson.entity';
+import { LessonQuestion } from './entities/lesson-question.entity';
+import { Question } from '../questions/entities/question.entity';
 import { Unit } from '../units/entities/unit.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
@@ -12,6 +14,10 @@ export class LessonsService {
   constructor(
     @InjectRepository(Lesson)
     private lessonRepository: Repository<Lesson>,
+    @InjectRepository(LessonQuestion)
+    private lessonQuestionRepository: Repository<LessonQuestion>,
+    @InjectRepository(Question)
+    private questionRepository: Repository<Question>,
     @InjectRepository(Unit)
     private unitRepository: Repository<Unit>,
   ) {}
@@ -50,7 +56,7 @@ export class LessonsService {
     const where = unitId ? { unitId } : {};
     return await this.lessonRepository.find({
       where,
-      relations: ['unit'],
+      relations: ['unit', 'lessonQuestions', 'lessonQuestions.question'],
       order: { orderNo: 'ASC', createdAt: 'DESC' },
     });
   }
@@ -58,7 +64,7 @@ export class LessonsService {
   async findOne(id: string) {
     const lesson = await this.lessonRepository.findOne({
       where: { id },
-      relations: ['unit'],
+      relations: ['unit', 'lessonQuestions', 'lessonQuestions.question', 'lessonQuestions.question.persona'],
     });
 
     if (!lesson) {
@@ -66,6 +72,94 @@ export class LessonsService {
     }
 
     return lesson;
+  }
+
+  async addQuestionToLesson(lessonId: string, questionId: string, orderNo: number) {
+    // Verify lesson exists
+    const lesson = await this.lessonRepository.findOne({ where: { id: lessonId } });
+    if (!lesson) {
+      throw new NotFoundException(`Lesson with id ${lessonId} not found`);
+    }
+
+    // Verify question exists
+    const question = await this.questionRepository.findOne({ where: { id: questionId } });
+    if (!question) {
+      throw new NotFoundException(`Question with id ${questionId} not found`);
+    }
+
+    // Check if question is already in this lesson
+    const existing = await this.lessonQuestionRepository.findOne({
+      where: { lessonId, questionId },
+    });
+    if (existing) {
+      throw new BadRequestException('Question is already added to this lesson');
+    }
+
+    // Check if orderNo already exists for this lesson
+    const existingOrder = await this.lessonQuestionRepository.findOne({
+      where: { lessonId, orderNo },
+    });
+    if (existingOrder) {
+      throw new BadRequestException(`Order number ${orderNo} already exists for this lesson`);
+    }
+
+    const lessonQuestion = this.lessonQuestionRepository.create({
+      lessonId,
+      questionId,
+      orderNo,
+    });
+
+    return await this.lessonQuestionRepository.save(lessonQuestion);
+  }
+
+  async removeQuestionFromLesson(lessonId: string, questionId: string) {
+    const lessonQuestion = await this.lessonQuestionRepository.findOne({
+      where: { lessonId, questionId },
+    });
+
+    if (!lessonQuestion) {
+      throw new NotFoundException('Question is not associated with this lesson');
+    }
+
+    await this.lessonQuestionRepository.remove(lessonQuestion);
+    return { message: 'Question removed from lesson successfully' };
+  }
+
+  async updateQuestionOrder(lessonId: string, questionId: string, orderNo: number) {
+    const lessonQuestion = await this.lessonQuestionRepository.findOne({
+      where: { lessonId, questionId },
+    });
+
+    if (!lessonQuestion) {
+      throw new NotFoundException('Question is not associated with this lesson');
+    }
+
+    // Check if orderNo already exists for this lesson
+    const existingOrder = await this.lessonQuestionRepository.findOne({
+      where: { lessonId, orderNo },
+    });
+    if (existingOrder && existingOrder.id !== lessonQuestion.id) {
+      throw new BadRequestException(`Order number ${orderNo} already exists for this lesson`);
+    }
+
+    lessonQuestion.orderNo = orderNo;
+    return await this.lessonQuestionRepository.save(lessonQuestion);
+  }
+
+  async getLessonQuestions(lessonId: string) {
+    const lesson = await this.lessonRepository.findOne({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException(`Lesson with id ${lessonId} not found`);
+    }
+
+    return await this.lessonQuestionRepository.find({
+      where: { lessonId },
+      relations: ['question', 'question.persona'],
+      order: { orderNo: 'ASC' },
+    });
   }
 
   async update(id: string, updateLessonDto: UpdateLessonDto) {

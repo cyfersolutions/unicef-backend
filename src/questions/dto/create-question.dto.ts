@@ -13,14 +13,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { QuestionType } from '../../common/enums/question-type.enum';
 
 export class CreateQuestionDto {
-  @ApiProperty({
-    description: 'Lesson ID this question belongs to (can be set later)',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-    required: false,
-  })
-  @IsOptional()
-  @IsUUID('4', { message: 'Lesson ID must be a valid UUID' })
-  lessonId?: string | null;
 
   @ApiProperty({
     description: 'Type of question',
@@ -101,13 +93,24 @@ export class CreateQuestionDto {
   @Min(0, { message: 'XP must be at least 0' })
   xp?: number | null;
 
+
   @ApiProperty({
-    description: 'Order number within the lesson (must be unique per lesson)',
+    description: 'Lesson ID to add this question to (optional - if provided, question will be added to the lesson)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'Lesson ID must be a valid UUID' })
+  lessonId?: string | null;
+
+  @ApiProperty({
+    description: 'Order number within the lesson (required if lessonId is provided)',
     example: 1,
     required: false,
   })
   @IsOptional()
   @IsInt({ message: 'Order number must be an integer' })
+  @Min(1, { message: 'Order number must be at least 1' })
   orderNo?: number | null;
 
   @ApiProperty({

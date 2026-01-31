@@ -1,20 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
-import { Lesson } from '../../lessons/entities/lesson.entity';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Persona } from '../../personas/entities/persona.entity';
 import { QuestionType } from '../../common/enums/question-type.enum';
 
 @Entity('questions')
-@Index(['lessonId', 'orderNo'], { unique: true, where: '"lesson_id" IS NOT NULL' })
 export class Question {
   @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  @Column({ type: 'uuid', nullable: true, name: 'lesson_id' })
-  lessonId: string | null;
-
-  @ManyToOne(() => Lesson, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'lesson_id' })
-  lesson: Lesson | null;
 
   @Column({
     type: 'enum',
@@ -45,8 +36,6 @@ export class Question {
   @Column({ type: 'int', nullable: true })
   xp: number | null;
 
-  @Column({ type: 'int', nullable: true, name: 'order_no' })
-  orderNo: number | null;
 
   @Column({ type: 'uuid', nullable: true, name: 'persona_id' })
   personaId: string | null;

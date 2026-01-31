@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@ne
 import { DailyGoalsService } from './daily-goals.service';
 import { CreateDailyGoalDto } from './dto/create-daily-goal.dto';
 import { UpdateDailyGoalDto } from './dto/update-daily-goal.dto';
+import { SubmitDailyGoalProgressDto } from './dto/submit-daily-goal-progress.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { XPManagementGuard } from '../auth/guards/xp-management.guard';
 
@@ -71,5 +72,21 @@ export class DailyGoalsController {
   @ApiResponse({ status: 403, description: 'Forbidden - Only superadmin or admin with XP_MANAGEMENT permission can delete daily goals' })
   remove(@Param('id') id: string) {
     return this.dailyGoalsService.remove(id);
+  }
+
+  @Post('progress')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Submit daily goal progress ' })
+  @ApiResponse({
+    status: 202,
+    description: 'Daily goal progress submitted successfully, processing in background',
+  })
+  @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Daily goal progress not found' })
+  async submitDailyGoalProgress(@Body() dto: SubmitDailyGoalProgressDto) {
+    return this.dailyGoalsService.submitDailyGoalProgress(dto);
   }
 }

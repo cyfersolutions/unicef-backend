@@ -1,4 +1,5 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
+import { createForeignKeyIfNotExists } from '../database/migration-helpers';
 
 export class CreateUnitsTable20260108141056 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -48,9 +49,11 @@ export class CreateUnitsTable20260108141056 implements MigrationInterface {
       true,
     );
 
-    await queryRunner.createForeignKey(
+    await createForeignKeyIfNotExists(
+      queryRunner,
       'units',
       new TableForeignKey({
+        name: 'FK_units_module_id',
         columnNames: ['module_id'],
         referencedColumnNames: ['id'],
         referencedTableName: 'modules',

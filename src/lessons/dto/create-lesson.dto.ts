@@ -70,5 +70,14 @@ export class CreateLessonDto {
   @Min(0, { message: 'Failed threshold must be at least 0' })
   @Max(100, { message: 'Failed threshold must be at most 100' })
   failedThreshold?: number;
+
+  @ApiProperty({
+    description: 'Icon URL for the lesson',
+    example: 'https://example.com/lesson-icon.png',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Icon URL must be a string' })
+  iconUrl?: string | null;
 }
 

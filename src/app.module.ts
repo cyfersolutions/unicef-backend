@@ -17,6 +17,12 @@ import { StreaksModule } from './streaks/streaks.module';
 import { DailyGoalsModule } from './daily-goals/daily-goals.module';
 import { PersonasModule } from './personas/personas.module';
 import { QuestionsModule } from './questions/questions.module';
+import { UsersModule } from './users/users.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { QueueModule } from './queue/queue.module';
+import { RewardsModule } from './rewards/rewards.module';
+import { SSEModule } from './sse/sse.module';
+import { GamesModule } from './games/games.module';
 
 @Module({
   imports: [
@@ -39,6 +45,12 @@ import { QuestionsModule } from './questions/questions.module';
     DailyGoalsModule,
     PersonasModule,
     QuestionsModule,
+    UsersModule,
+    AuditLogsModule,
+    QueueModule,
+    RewardsModule,
+    SSEModule,
+    GamesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
