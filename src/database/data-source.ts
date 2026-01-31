@@ -19,6 +19,11 @@ export default new DataSource({
   ssl: {
     rejectUnauthorized: false,
   } ,
+  extra:{
+    ssl:{
+      rejectUnauthorized: false,
+    }
+  },
   migrationsTransactionMode:"all"
 });
 
