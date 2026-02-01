@@ -23,6 +23,7 @@ import { QueueModule } from './queue/queue.module';
 import { RewardsModule } from './rewards/rewards.module';
 import { SSEModule } from './sse/sse.module';
 import { GamesModule } from './games/games.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { GamesModule } from './games/games.module';
     RewardsModule,
     SSEModule,
     GamesModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

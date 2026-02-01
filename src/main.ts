@@ -3,9 +3,16 @@ import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
 import { AppModule } from './app.module';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  
+  // Serve static files from uploads directory
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
+  });
 
   // Enable class-validator to use NestJS dependency injection
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
@@ -49,6 +56,7 @@ async function bootstrap() {
     .addTag('xprules', 'XP Rules management endpoints')
     .addTag('badges', 'Badges management endpoints')
     .addTag('audit-logs', 'Audit logs endpoints (superadmin only)')
+    .addTag('upload', 'File upload endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

@@ -52,13 +52,66 @@ export class LessonsService {
     return await this.lessonRepository.save(lesson);
   }
 
-  async findAll(unitId?: string) {
-    const where = unitId ? { unitId } : {};
-    return await this.lessonRepository.find({
-      where,
-      relations: ['unit', 'lessonQuestions', 'lessonQuestions.question'],
-      order: { orderNo: 'ASC', createdAt: 'DESC' },
-    });
+  async findAll(unitId?: string, filters?: Record<string, any>) {
+    const queryBuilder = this.lessonRepository
+      .createQueryBuilder('lesson')
+      .leftJoinAndSelect('lesson.unit', 'unit')
+      .loadRelationCountAndMap('lesson.totalQuestions', 'lesson.lessonQuestions')
+      .orderBy('lesson.order_no', 'ASC')
+      .addOrderBy('lesson.created_at', 'DESC');
+
+    // Filter by unitId if provided
+    if (unitId) {
+      queryBuilder.andWhere('lesson.unit_id = :unitId', { unitId });
+    }
+
+    // Apply dynamic filters from query parameters
+    if (filters) {
+
+      //filter by module 
+      if (filters.moduleId) {
+        queryBuilder.andWhere('unit.module_id = :moduleId', { moduleId: filters.moduleId });
+      }
+
+      // Filter by unit id
+      if (filters.unitId) {
+        queryBuilder.andWhere('lesson.unit_id = :unitId', { unitId: filters.unitId });
+      }
+
+      // Filter by title (case-insensitive partial match)
+      if (filters.title) {
+        queryBuilder.andWhere('lesson.title ILIKE :title', { title: `%${filters.title}%` });
+      }
+     
+      // Filter by isActive
+      if (filters.isActive !== undefined && filters.isActive !== null) {
+        const isActive = filters.isActive === 'true' || filters.isActive === true;
+        queryBuilder.andWhere('lesson.is_active = :isActive', { isActive });
+      }
+      // Filter by passThreshold
+      if (filters.passThreshold !== undefined && filters.passThreshold !== null) {
+        queryBuilder.andWhere('lesson.pass_threshold = :passThreshold', { passThreshold: filters.passThreshold });
+      }
+      // Filter by failedThreshold
+      if (filters.failedThreshold !== undefined && filters.failedThreshold !== null) {
+        queryBuilder.andWhere('lesson.failed_threshold = :failedThreshold', { failedThreshold: filters.failedThreshold });
+      }
+      // Filter by createdAt (date range)
+      if (filters.createdAtFrom) {
+        queryBuilder.andWhere('lesson.created_at >= :createdAtFrom', { createdAtFrom: filters.createdAtFrom });
+      }
+      if (filters.createdAtTo) {
+        queryBuilder.andWhere('lesson.created_at <= :createdAtTo', { createdAtTo: filters.createdAtTo });
+      }
+    }
+
+    const lessons = await queryBuilder.getMany();
+    
+    // Map results to include totalQuestions count (loadRelationCountAndMap adds it as a property)
+    return lessons.map((lesson) => ({
+      ...lesson,
+      totalQuestions: (lesson as any).totalQuestions || 0,
+    }));
   }
 
   async findOne(id: string) {

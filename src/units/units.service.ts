@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Unit } from './entities/unit.entity';
 import { Module } from '../modules/entities/module.entity';
+import { Lesson } from '../lessons/entities/lesson.entity';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -14,6 +15,8 @@ export class UnitsService {
     private unitRepository: Repository<Unit>,
     @InjectRepository(Module)
     private moduleRepository: Repository<Module>,
+    @InjectRepository(Lesson)
+    private lessonRepository: Repository<Lesson>,
   ) {}
 
   private async shiftOrderNumbers(moduleId: string, targetOrderNo: number, excludeUnitId?: string) {
@@ -46,13 +49,51 @@ export class UnitsService {
     return await this.unitRepository.save(unit);
   }
 
-  async findAll(moduleId?: string) {
-    const where = moduleId ? { moduleId } : {};
-    return await this.unitRepository.find({
-      where,
-      relations: ['module'],
-      order: { orderNo: 'ASC', createdAt: 'DESC' },
-    });
+  async findAll(moduleId?: string, filters?: Record<string, any>) {
+    const queryBuilder = this.unitRepository
+      .createQueryBuilder('unit')
+      .leftJoinAndSelect('unit.module', 'module')
+      .loadRelationCountAndMap('unit.totalLessons', 'unit.lessons')
+      .orderBy('unit.order_no', 'ASC')
+      .addOrderBy('unit.created_at', 'DESC');
+
+    // Filter by moduleId if provided
+    if (moduleId) {
+      queryBuilder.andWhere('unit.module_id = :moduleId', { moduleId });
+    }
+
+    // Apply dynamic filters from query parameters
+    if (filters) {
+      // Filter by moduleid
+      if (filters.moduleId) {
+        queryBuilder.andWhere('unit.module_id = :moduleId', { moduleId: filters.moduleId });
+      }
+      // Filter by title (case-insensitive partial match)
+      if (filters.title) {
+        queryBuilder.andWhere('unit.title ILIKE :title', { title: `%${filters.title}%` });
+      }
+    
+      // Filter by isActive
+      if (filters.isActive !== undefined && filters.isActive !== null) {
+        const isActive = filters.isActive === 'true' || filters.isActive === true;
+        queryBuilder.andWhere('unit.is_active = :isActive', { isActive });
+      }
+      // Filter by createdAt (date range)
+      if (filters.createdAtFrom) {
+        queryBuilder.andWhere('unit.created_at >= :createdAtFrom', { createdAtFrom: filters.createdAtFrom });
+      }
+      if (filters.createdAtTo) {
+        queryBuilder.andWhere('unit.created_at <= :createdAtTo', { createdAtTo: filters.createdAtTo });
+      }
+    }
+
+    const units = await queryBuilder.getMany();
+    
+    // Map results to include totalLessons count (loadRelationCountAndMap adds it as a property)
+    return units.map((unit) => ({
+      ...unit,
+      totalLessons: (unit as any).totalLessons || 0,
+    }));
   }
 
   async findOne(id: string) {

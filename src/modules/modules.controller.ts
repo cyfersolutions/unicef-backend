@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ModulesService } from './modules.service';
 import { UnitsService } from '../units/units.service';
 import { CreateModuleDto } from './dto/create-module.dto';
@@ -46,10 +46,17 @@ export class ModulesController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get units by module ID (authenticated users)' })
   @ApiParam({ name: 'moduleId', description: 'Module UUID' })
-  @ApiResponse({ status: 200, description: 'List of units for the module' })
+  @ApiQuery({ name: 'id', required: false, description: 'Filter by unit ID' })
+  @ApiQuery({ name: 'title', required: false, description: 'Filter by title (partial match)' })
+  @ApiQuery({ name: 'description', required: false, description: 'Filter by description (partial match)' })
+  @ApiQuery({ name: 'orderNo', required: false, description: 'Filter by order number' })
+  @ApiQuery({ name: 'isActive', required: false, description: 'Filter by active status (true/false)' })
+  @ApiQuery({ name: 'createdAtFrom', required: false, description: 'Filter by creation date from (ISO date)' })
+  @ApiQuery({ name: 'createdAtTo', required: false, description: 'Filter by creation date to (ISO date)' })
+  @ApiResponse({ status: 200, description: 'List of units for the module with totalLessons count' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getUnitsByModuleId(@Param('moduleId') moduleId: string) {
-    return this.unitsService.findAll(moduleId);
+  getUnitsByModuleId(@Param('moduleId') moduleId: string, @Query() filters: Record<string, any>) {
+    return this.unitsService.findAll(moduleId, filters);
   }
 
   @Get(':id')

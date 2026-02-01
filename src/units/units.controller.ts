@@ -37,10 +37,18 @@ export class UnitsController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get all units (authenticated users)' })
   @ApiQuery({ name: 'moduleId', required: false, description: 'Filter units by module ID' })
-  @ApiResponse({ status: 200, description: 'List of units' })
+  @ApiQuery({ name: 'id', required: false, description: 'Filter by unit ID' })
+  @ApiQuery({ name: 'title', required: false, description: 'Filter by title (partial match)' })
+  @ApiQuery({ name: 'description', required: false, description: 'Filter by description (partial match)' })
+  @ApiQuery({ name: 'orderNo', required: false, description: 'Filter by order number' })
+  @ApiQuery({ name: 'isActive', required: false, description: 'Filter by active status (true/false)' })
+  @ApiQuery({ name: 'createdAtFrom', required: false, description: 'Filter by creation date from (ISO date)' })
+  @ApiQuery({ name: 'createdAtTo', required: false, description: 'Filter by creation date to (ISO date)' })
+  @ApiResponse({ status: 200, description: 'List of units with totalLessons count' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findAll(@Query('moduleId') moduleId?: string) {
-    return this.unitsService.findAll(moduleId);
+  findAll(@Query() query: Record<string, any>) {
+    const { moduleId, ...filters } = query;
+    return this.unitsService.findAll(moduleId, filters);
   }
 
   @Get(':unitId/lessons')
@@ -48,10 +56,20 @@ export class UnitsController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get lessons by unit ID (authenticated users)' })
   @ApiParam({ name: 'unitId', description: 'Unit UUID' })
-  @ApiResponse({ status: 200, description: 'List of lessons for the unit' })
+  @ApiQuery({ name: 'id', required: false, description: 'Filter by lesson ID' })
+  @ApiQuery({ name: 'title', required: false, description: 'Filter by title (partial match)' })
+  @ApiQuery({ name: 'description', required: false, description: 'Filter by description (partial match)' })
+  @ApiQuery({ name: 'iconUrl', required: false, description: 'Filter by icon URL' })
+  @ApiQuery({ name: 'orderNo', required: false, description: 'Filter by order number' })
+  @ApiQuery({ name: 'isActive', required: false, description: 'Filter by active status (true/false)' })
+  @ApiQuery({ name: 'passThreshold', required: false, description: 'Filter by pass threshold' })
+  @ApiQuery({ name: 'failedThreshold', required: false, description: 'Filter by failed threshold' })
+  @ApiQuery({ name: 'createdAtFrom', required: false, description: 'Filter by creation date from (ISO date)' })
+  @ApiQuery({ name: 'createdAtTo', required: false, description: 'Filter by creation date to (ISO date)' })
+  @ApiResponse({ status: 200, description: 'List of lessons for the unit with totalQuestions count' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getLessonsByUnitId(@Param('unitId') unitId: string) {
-    return this.lessonsService.findAll(unitId);
+  getLessonsByUnitId(@Param('unitId') unitId: string, @Query() filters: Record<string, any>) {
+    return this.lessonsService.findAll(unitId, filters);
   }
 
   @Get(':id')

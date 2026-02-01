@@ -36,10 +36,21 @@ export class LessonsController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get all lessons (authenticated users)' })
   @ApiQuery({ name: 'unitId', required: false, description: 'Filter lessons by unit ID' })
-  @ApiResponse({ status: 200, description: 'List of lessons' })
+  @ApiQuery({ name: 'id', required: false, description: 'Filter by lesson ID' })
+  @ApiQuery({ name: 'title', required: false, description: 'Filter by title (partial match)' })
+  @ApiQuery({ name: 'description', required: false, description: 'Filter by description (partial match)' })
+  @ApiQuery({ name: 'iconUrl', required: false, description: 'Filter by icon URL' })
+  @ApiQuery({ name: 'orderNo', required: false, description: 'Filter by order number' })
+  @ApiQuery({ name: 'isActive', required: false, description: 'Filter by active status (true/false)' })
+  @ApiQuery({ name: 'passThreshold', required: false, description: 'Filter by pass threshold' })
+  @ApiQuery({ name: 'failedThreshold', required: false, description: 'Filter by failed threshold' })
+  @ApiQuery({ name: 'createdAtFrom', required: false, description: 'Filter by creation date from (ISO date)' })
+  @ApiQuery({ name: 'createdAtTo', required: false, description: 'Filter by creation date to (ISO date)' })
+  @ApiResponse({ status: 200, description: 'List of lessons with totalQuestions count' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findAll(@Query('unitId') unitId?: string) {
-    return this.lessonsService.findAll(unitId);
+  findAll(@Query() query: Record<string, any>) {
+    const { unitId, ...filters } = query;
+    return this.lessonsService.findAll(unitId, filters);
   }
 
   @Get(':id')
