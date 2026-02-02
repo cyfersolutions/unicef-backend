@@ -6,8 +6,10 @@ import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtUserGuard } from '../auth/guards/jwt-user.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequireRoles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('units')
 @Controller('units')
@@ -82,6 +84,36 @@ export class UnitsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   findOne(@Param('id') id: string) {
     return this.unitsService.findOne(id);
+  }
+
+  @Get(':id/with-progress')
+  @UseGuards(JwtUserGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get unit by ID with progress and lessons with progress for current vaccinator' })
+  @ApiParam({ name: 'id', description: 'Unit UUID' })
+  @ApiResponse({ status: 200, description: 'Unit found with progress and lessons' })
+  @ApiResponse({ status: 404, description: 'Unit not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  findOneWithProgress(
+    @Param('id') id: string,
+    @CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' },
+  ) {
+    return this.unitsService.findOneWithProgress(id, user.userId);
+  }
+
+  @Get('module/:moduleId/with-progress')
+  @UseGuards(JwtUserGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all units by module ID with progress and lessons with progress for current vaccinator' })
+  @ApiParam({ name: 'moduleId', description: 'Module UUID' })
+  @ApiResponse({ status: 200, description: 'List of units with progress and lessons' })
+  @ApiResponse({ status: 404, description: 'Module not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  findAllByModuleWithProgress(
+    @Param('moduleId') moduleId: string,
+    @CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' },
+  ) {
+    return this.unitsService.findAllByModuleWithProgress(moduleId, user.userId);
   }
 
   @Patch(':id')

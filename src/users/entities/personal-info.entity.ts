@@ -20,6 +20,15 @@ export class PersonalInfo {
   @Column({ type: 'text', nullable: true })
   address: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  province: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  designation: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  completed: boolean;
+
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt: Date;
 

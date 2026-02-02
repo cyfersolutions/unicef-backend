@@ -5,6 +5,7 @@ import { seedSuperAdmin } from './super-admin.seeder';
 import { seedSuperAdminPermissions } from './admin-permissions.seeder';
 import { seedStreaks } from './streaks.seeder';
 import { seedDailyGoals } from './daily-goals.seeder';
+import { seedOnboardingQuestions } from './onboarding-questions.seeder';
 
 export async function runSeeders(dataSource: DataSource): Promise<void> {
   console.log('🌱 Starting database seeders...\n');
@@ -38,6 +39,11 @@ export async function runSeeders(dataSource: DataSource): Promise<void> {
     // Seed daily goals
     console.log('🎯 Seeding daily goals...');
     await seedDailyGoals(dataSource);
+    console.log('');
+
+    // Seed onboarding questions
+    console.log('📝 Seeding onboarding questions...');
+    await seedOnboardingQuestions(dataSource);
     console.log('');
 
     console.log('✅ All seeders completed successfully!');

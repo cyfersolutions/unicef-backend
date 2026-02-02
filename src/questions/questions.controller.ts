@@ -6,8 +6,10 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { SubmitQuestionDto } from './dto/submit-question.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtUserGuard } from '../auth/guards/jwt-user.guard';
 import { XPManagementGuard } from '../auth/guards/xp-management.guard';
 import { CurrentVaccinator } from '../auth/decorators/current-vaccinator.decorator';
+import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 
 @ApiTags('questions')
 @Controller('questions')
@@ -81,7 +83,7 @@ export class QuestionsController {
   }
 
   @Post('submit')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtUserGuard)
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Submit question answer (authenticated vaccinators)' })
@@ -90,10 +92,10 @@ export class QuestionsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Lesson question not found' })
   async submitQuestion(
-    @Body() submitQuestionDto: SubmitQuestionDto,
-    @CurrentVaccinator() vaccinator: any,
+      @Body() submitQuestionDto: SubmitQuestionDto,
+      @CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' },
   ) {
-    const vaccinatorId = vaccinator?.id || vaccinator?.vaccinatorId;
+    const vaccinatorId = user?.userId;
     if (!vaccinatorId) {
       throw new Error('Vaccinator ID not found in token');
     }

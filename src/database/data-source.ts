@@ -16,14 +16,9 @@ export default new DataSource({
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
   synchronize: false,
-  ssl: {
+  ssl: process.env.NODE_ENV === 'production' ? {
     rejectUnauthorized: false,
-  } ,
-  extra:{
-    ssl:{
-      rejectUnauthorized: false,
-    }
-  },
-  migrationsTransactionMode:"all"
+  } : false,
+  migrationsTransactionMode: "all"
 });
 

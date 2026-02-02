@@ -8,9 +8,10 @@ import { Module } from '../modules/entities/module.entity';
 import { Vaccinator } from '../users/entities/vaccinator.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { LessonsModule } from '../lessons/lessons.module';
+import { LessonProgress } from 'src/lessons/entities/lesson-progress.entity';
 
 @NestModule({
-  imports: [TypeOrmModule.forFeature([Unit, UnitProgress, Module, Vaccinator, Lesson]), LessonsModule],
+  imports: [TypeOrmModule.forFeature([Unit, UnitProgress, Module, Vaccinator, Lesson, LessonProgress]), LessonsModule],
   controllers: [UnitsController],
   providers: [UnitsService],
   exports: [UnitsService],

@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Question } from './entities/question.entity';
 import { LessonQuestion } from '../lessons/entities/lesson-question.entity';
 import { QueueService } from '../queue/queue.service';
 import { SubmitQuestionDto } from './dto/submit-question.dto';
+import { LessonsService } from '../lessons/lessons.service';
 
 @Injectable()
 export class QuestionsSubmissionService {
@@ -14,6 +15,8 @@ export class QuestionsSubmissionService {
     @InjectRepository(LessonQuestion)
     private lessonQuestionRepository: Repository<LessonQuestion>,
     private queueService: QueueService,
+    @Inject(forwardRef(() => LessonsService))
+    private lessonsService: LessonsService,
   ) {}
 
   async submitQuestion(submitQuestionDto: SubmitQuestionDto, vaccinatorId: string) {
@@ -48,11 +51,21 @@ export class QuestionsSubmissionService {
       timestamp: new Date(),
     });
 
+    // Get the next question
+    const nextQuestionData = await this.lessonsService.getNextQuestion(
+      lessonQuestion.lessonId,
+      lessonQuestionId
+    );
+
     return {
       jobId: job.id,
       isCorrect,
       questionXp,
       message: 'Question submitted successfully. Processing in background.',
+      nextQuestion: nextQuestionData.nextQuestion,
+      isLastQuestion: nextQuestionData.isLastQuestion,
+      nextQuestionIndex: nextQuestionData.nextQuestionIndex,
+      totalQuestions: nextQuestionData.totalQuestions,
     };
   }
 

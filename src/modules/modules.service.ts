@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Module } from './entities/module.entity';
+import { ModuleProgress } from './entities/module-progress.entity';
 import { CreateModuleDto } from './dto/create-module.dto';
 import { UpdateModuleDto } from './dto/update-module.dto';
 
@@ -10,6 +11,8 @@ export class ModulesService {
   constructor(
     @InjectRepository(Module)
     private moduleRepository: Repository<Module>,
+    @InjectRepository(ModuleProgress)
+    private moduleProgressRepository: Repository<ModuleProgress>,
   ) {}
 
   private async shiftModuleOrderNumbers(targetOrderNo: number, excludeModuleId?: string) {
@@ -86,8 +89,9 @@ export class ModulesService {
       }
     }
 
-    await this.moduleRepository.update(id, updateModuleDto);
-    return this.findOne(id);
+    Object.assign(module, updateModuleDto);
+    const updatedModule = await this.moduleRepository.save(module);
+    return this.findOne(updatedModule.id);
   }
 
   async remove(id: string) {
@@ -111,5 +115,51 @@ export class ModulesService {
 
   async updateOrder(id: string, orderNo: number) {
     return this.update(id, { orderNo });
+  }
+
+  async findAllWithProgress(vaccinatorId: string) {
+    const modules = await this.moduleRepository.find({
+      order: { orderNo: 'ASC', createdAt: 'DESC' },
+      relations: ['units', 'units.lessons'],
+    });
+
+    // Get all progress records for this vaccinator
+    const progressRecords = await this.moduleProgressRepository.find({
+      where: { vaccinatorId },
+      order: { attemptNumber: 'DESC' },
+    });
+
+    // Group progress by moduleId - prefer isCompleted false, otherwise get isCompleted true
+    const progressMap = new Map<string, ModuleProgress>();
+    for (const progress of progressRecords) {
+      const existing = progressMap.get(progress.moduleId);
+      if (!existing) {
+        progressMap.set(progress.moduleId, progress);
+      } else {
+        // Prefer isCompleted false, otherwise keep the existing one
+        if (!progress.isCompleted && existing.isCompleted) {
+          progressMap.set(progress.moduleId, progress);
+        } else if (progress.isCompleted && !existing.isCompleted) {
+          // Keep existing (isCompleted false)
+        } else {
+          // Both same completion status, prefer the one with higher attempt number (already sorted DESC)
+          // No need to update since we're iterating in DESC order
+        }
+      }
+    }
+
+    // Map modules with progress, total units count, and total lessons count
+    return modules.map((module) => {
+      const progress = progressMap.get(module.id);
+      // Calculate total lessons across all units
+      const totalLessons = module.units?.reduce((sum, unit) => sum + (unit.lessons?.length || 0), 0) || 0;
+      return {
+        ...module,
+        progress: progress || null,
+        isLocked: !progress, // Locked if no progress exists
+        totalUnits: module.units?.length || 0,
+        totalLessons,
+      };
+    });
   }
 }

@@ -7,9 +7,11 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { AddQuestionToLessonDto } from './dto/add-question-to-lesson.dto';
 import { UpdateQuestionOrderDto } from './dto/update-question-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtUserGuard } from '../auth/guards/jwt-user.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequireRoles } from '../auth/decorators/roles.decorator';
 import { XPManagementGuard } from '../auth/guards/xp-management.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('lessons')
 @Controller('lessons')
@@ -121,6 +123,36 @@ export class LessonsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getLessonQuestions(@Param('id') id: string) {
     return this.lessonsService.getLessonQuestions(id);
+  }
+
+  @Get(':id/questions/with-progress')
+  @UseGuards(JwtUserGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all questions for a lesson with progress, question content, and answer for current vaccinator' })
+  @ApiParam({ name: 'id', description: 'Lesson UUID' })
+  @ApiResponse({ status: 200, description: 'List of questions with progress, content, and answer' })
+  @ApiResponse({ status: 404, description: 'Lesson not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getLessonQuestionsWithProgress(
+    @Param('id') id: string,
+    @CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' },
+  ) {
+    return this.lessonsService.getLessonQuestionsWithProgress(id, user.userId);
+  }
+
+  @Get(':id/current-question')
+  @UseGuards(JwtUserGuard)
+  @ApiBearerAuth('JWT-user')
+  @ApiOperation({ summary: 'Get current question state for a lesson (based on lesson progress)' })
+  @ApiParam({ name: 'id', description: 'Lesson UUID' })
+  @ApiResponse({ status: 200, description: 'Current question state with progress info' })
+  @ApiResponse({ status: 404, description: 'Lesson not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getCurrentQuestionState(
+    @Param('id') id: string,
+    @CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' },
+  ) {
+    return this.lessonsService.getCurrentQuestionState(id, user.userId);
   }
 
   @Post(':id/questions')

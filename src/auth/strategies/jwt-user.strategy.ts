@@ -2,17 +2,19 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Admin } from '../../admins/entities/admin.entity';
 import { RedisService } from '../services/redis.service';
 
+interface JwtPayload {
+  sub: string;
+  email: string;
+  role: 'vaccinator' | 'supervisor';
+  type: 'vaccinator' | 'supervisor';
+}
+
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtUserStrategy extends PassportStrategy(Strategy, 'jwt-user') {
   constructor(
     private configService: ConfigService,
-    @InjectRepository(Admin)
-    private adminRepository: Repository<Admin>,
     private redisService: RedisService,
   ) {
     super({
@@ -23,7 +25,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(req: any, payload: any) {
+  async validate(req: any, payload: JwtPayload) {
+    if (!payload.sub || !payload.type) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
     // Check if token is blacklisted
     const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
     if (token) {
@@ -33,16 +39,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
-    const admin = await this.adminRepository.findOne({
-      where: { id: payload.sub },
-      relations: ['role', 'adminPermissions', 'adminPermissions.permission'],
-    });
-
-    if (!admin || !admin.isActive) {
-      throw new UnauthorizedException();
-    }
-
-    return admin;
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      type: payload.type,
+    };
   }
 }
 

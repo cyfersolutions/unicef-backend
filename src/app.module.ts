@@ -24,6 +24,7 @@ import { RewardsModule } from './rewards/rewards.module';
 import { SSEModule } from './sse/sse.module';
 import { GamesModule } from './games/games.module';
 import { UploadModule } from './upload/upload.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { UploadModule } from './upload/upload.module';
     SSEModule,
     GamesModule,
     UploadModule,
+    OnboardingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

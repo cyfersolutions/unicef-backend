@@ -1,10 +1,9 @@
-import { Controller, Get, Param, UseGuards, Res, Req } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Res, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import type { Response, Request } from 'express';
 import { SSEService } from './sse.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtUserGuard } from '../auth/guards/jwt-user.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { Admin } from '../admins/entities/admin.entity';
 
 @ApiTags('sse')
 @Controller('sse')
@@ -12,16 +11,20 @@ export class SSEController {
   constructor(private readonly sseService: SSEService) {}
 
   @Get('events/:vaccinatorId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtUserGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'SSE endpoint for real-time updates (authenticated users)' })
+  @ApiOperation({ summary: 'SSE endpoint for real-time updates (authenticated vaccinators)' })
   @ApiParam({ name: 'vaccinatorId', description: 'Vaccinator UUID' })
   async streamEvents(
     @Param('vaccinatorId') vaccinatorId: string,
-    @CurrentUser() admin: Admin,
+    @CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' },
     @Res() res: Response,
     @Req() req: Request,
   ) {
+    // Ensure user can only subscribe to their own events
+    if (user.userId !== vaccinatorId) {
+      throw new ForbiddenException('You can only subscribe to your own events');
+    }
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

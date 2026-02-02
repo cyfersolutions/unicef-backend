@@ -6,8 +6,10 @@ import { CreateModuleDto } from './dto/create-module.dto';
 import { UpdateModuleDto } from './dto/update-module.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtUserGuard } from '../auth/guards/jwt-user.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequireRoles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('modules')
 @Controller('modules')
@@ -39,6 +41,16 @@ export class ModulesController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   findAll() {
     return this.modulesService.findAll();
+  }
+
+  @Get('with-progress')
+  @UseGuards(JwtUserGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all modules with progress for current vaccinator' })
+  @ApiResponse({ status: 200, description: 'List of modules with progress and isLocked status' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  findAllWithProgress(@CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' }) {
+    return this.modulesService.findAllWithProgress(user.userId);
   }
 
   @Get(':moduleId/units')

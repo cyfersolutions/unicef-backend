@@ -57,6 +57,7 @@ async function bootstrap() {
     .addTag('badges', 'Badges management endpoints')
     .addTag('audit-logs', 'Audit logs endpoints (superadmin only)')
     .addTag('upload', 'File upload endpoints')
+    .addTag('onboarding', 'Onboarding questions endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

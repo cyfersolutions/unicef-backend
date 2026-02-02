@@ -72,13 +72,13 @@ export class ProgressUpdateService {
           lessonQuestionId,
           vaccinatorId,
           attemptNumber: 1,
-          isCompleted: isCorrect,
+          isCompleted: true,
           xpEarned: questionXp, // Initial XP without rewards
           startDatetime: timestamp,
           endDatetime: timestamp,
         });
       } else {
-        lessonQuestionProgress.isCompleted = isCorrect || lessonQuestionProgress.isCompleted;
+        // lessonQuestionProgress.isCompleted = isCorrect || lessonQuestionProgress.isCompleted;
         lessonQuestionProgress.xpEarned += questionXp; // Add question XP first
         lessonQuestionProgress.endDatetime = timestamp;
       }
@@ -105,37 +105,45 @@ export class ProgressUpdateService {
       });
 
       const wasLessonCompletedBefore = lessonProgress?.isCompleted ?? false;
-      const previousQuestionsCompleted = lessonProgress?.questionsCompleted ?? 0;
+      
+      // Get total questions count
+      const totalQuestions = await manager.count(LessonQuestion, {
+        where: { lessonId: lesson.id },
+      });
+
+      // Check if this question was already attempted (to avoid double counting)
+      const wasQuestionAlreadyAttempted = !!lessonQuestionProgress;
 
       if (!lessonProgress) {
+        // Count unique questions attempted so far (this is the first one)
+        const uniqueQuestionsAttempted = 1;
         lessonProgress = manager.create(LessonProgress, {
           lessonId: lesson.id,
           vaccinatorId,
           attemptNumber: 1,
-          questionsCompleted: isCorrect ? 1 : 0,
+          questionsCompleted: uniqueQuestionsAttempted,
           currentQuestionId: lessonQuestionId,
-          masteryLevel: isCorrect ? 100 : 0,
-          isCompleted: false,
+          masteryLevel: totalQuestions > 0 ? (uniqueQuestionsAttempted / totalQuestions) * 100 : 0,
+          isCompleted: uniqueQuestionsAttempted >= totalQuestions,
           xpEarned: questionXp, // Initial XP without rewards
           startDatetime: timestamp,
+          endDatetime: uniqueQuestionsAttempted >= totalQuestions ? timestamp : null,
         });
       } else {
-        if (isCorrect) {
+        // Increment questionsCompleted only if this question wasn't attempted before
+        if (!wasQuestionAlreadyAttempted) {
           lessonProgress.questionsCompleted += 1;
         }
         lessonProgress.xpEarned += questionXp; // Add question XP first
         lessonProgress.currentQuestionId = lessonQuestionId;
 
-        // Calculate mastery level
-        const totalQuestions = await manager.count(LessonQuestion, {
-          where: { lessonId: lesson.id },
-        });
+        // Calculate mastery level based on unique questions attempted
         lessonProgress.masteryLevel = totalQuestions > 0 
           ? (lessonProgress.questionsCompleted / totalQuestions) * 100 
           : 0;
 
-        // Check if lesson is completed
-        if (lessonProgress.questionsCompleted >= totalQuestions) {
+        // Check if lesson is completed (all questions attempted)
+        if (lessonProgress.questionsCompleted >= totalQuestions && !lessonProgress.isCompleted) {
           lessonProgress.isCompleted = true;
           lessonProgress.endDatetime = timestamp;
         }
@@ -145,6 +153,50 @@ export class ProgressUpdateService {
       
       // Check if lesson was just completed in this transaction
       const isLessonNewlyCompleted = lessonProgress.isCompleted && !wasLessonCompletedBefore;
+
+      // If lesson was just completed, create progress for next lesson in unit
+      let nextLessonId: string | null = null;
+      if (isLessonNewlyCompleted) {
+        // Get all lessons in the unit ordered by orderNo
+        const unitLessons = await manager.find(Lesson, {
+          where: { unitId: unit.id },
+          order: { orderNo: 'ASC' },
+        });
+
+        // Find current lesson index
+        const currentLessonIndex = unitLessons.findIndex((l) => l.id === lesson.id);
+        
+        // If there's a next lesson, create progress for it
+        if (currentLessonIndex >= 0 && currentLessonIndex < unitLessons.length - 1) {
+          const nextLesson = unitLessons[currentLessonIndex + 1];
+          nextLessonId = nextLesson.id;
+          
+          // Check if progress already exists for next lesson
+          const nextLessonProgress = await manager.findOne(LessonProgress, {
+            where: {
+              lessonId: nextLesson.id,
+              vaccinatorId,
+              attemptNumber: 1,
+            },
+          });
+
+          // Create progress for next lesson if it doesn't exist
+          if (!nextLessonProgress) {
+            const newLessonProgress = manager.create(LessonProgress, {
+              lessonId: nextLesson.id,
+              vaccinatorId,
+              attemptNumber: 1,
+              questionsCompleted: 0,
+              currentQuestionId: null,
+              masteryLevel: 0,
+              isCompleted: false,
+              xpEarned: 0,
+              startDatetime: timestamp,
+            });
+            await manager.save(newLessonProgress);
+          }
+        }
+      }
 
       // 3. Update or create unit_progress
       let unitProgress = await manager.findOne(UnitProgress, {
@@ -172,9 +224,14 @@ export class ProgressUpdateService {
       } else {
         if (isLessonNewlyCompleted) {
           unitProgress.lessonsCompleted += 1;
+          // Update currentLessonId to next lesson if lesson was completed
+          if (nextLessonId) {
+            unitProgress.currentLessonId = nextLessonId;
+          }
+        } else {
+          unitProgress.currentLessonId = lesson.id;
         }
         unitProgress.xpEarned += questionXp; // Add question XP first
-        unitProgress.currentLessonId = lesson.id;
 
         // Calculate mastery level
         const totalLessons = await manager.count(Lesson, {
