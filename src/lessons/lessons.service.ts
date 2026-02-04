@@ -445,18 +445,47 @@ export class LessonsService {
       };
     }
 
-    // Find current question by currentQuestionId
+    // Find the first unanswered question (one without progress)
+    // Get all lesson question progresses for this vaccinator for this lesson
+    const lessonQuestionIds = lessonQuestions.map(lq => lq.id);
+    
+    // Query lesson question progresses where lessonQuestionId is in our list
+    const answeredQuestionProgresses = lessonQuestionIds.length > 0
+      ? await this.lessonQuestionProgressRepository
+          .createQueryBuilder('lqp')
+          .where('lqp.vaccinator_id = :vaccinatorId', { vaccinatorId })
+          .andWhere('lqp.lesson_question_id IN (:...lessonQuestionIds)', { lessonQuestionIds })
+          .getMany()
+      : [];
+
+    const answeredQuestionIds = new Set(
+      answeredQuestionProgresses.map(p => p.lessonQuestionId)
+    );
+
+    // Find first question without progress
     let currentQuestionIndex = 0;
     let currentQuestion = lessonQuestions[0];
 
-    if (lessonProgress.currentQuestionId) {
-      const foundIndex = lessonQuestions.findIndex(
-        (lq) => lq.id === lessonProgress.currentQuestionId
-      );
-      if (foundIndex >= 0) {
-        currentQuestionIndex = foundIndex;
-        currentQuestion = lessonQuestions[foundIndex];
+    for (let i = 0; i < lessonQuestions.length; i++) {
+      if (!answeredQuestionIds.has(lessonQuestions[i].id)) {
+        currentQuestionIndex = i;
+        currentQuestion = lessonQuestions[i];
+        break;
       }
+    }
+
+    // If all questions are answered but lesson is not completed, return null
+    // (This means lesson should be completed but isn't - edge case)
+    if (answeredQuestionIds.size >= totalQuestions && !lessonProgress.isCompleted) {
+      // All questions answered but not marked as completed - return null to trigger completion check
+      return {
+        currentQuestion: null,
+        currentQuestionIndex: totalQuestions,
+        totalQuestions,
+        questionsCompleted: lessonProgress.questionsCompleted,
+        isLessonCompleted: true, // Force completion check
+        xpEarned: lessonProgress.xpEarned,
+      };
     }
 
     return {
@@ -501,6 +530,10 @@ export class LessonsService {
     }
 
     const nextQuestion = lessonQuestions[currentIndex + 1];
+    const nextIndex = currentIndex + 1;
+    // isLastQuestion should be true only if the next question is the last one (no question after it)
+    const isLastQuestion = nextIndex === lessonQuestions.length - 1;
+    
     return {
       nextQuestion: {
         id: nextQuestion.id,
@@ -509,8 +542,8 @@ export class LessonsService {
         orderNo: nextQuestion.orderNo,
         question: nextQuestion.question,
       },
-      isLastQuestion: currentIndex + 1 >= lessonQuestions.length - 1,
-      nextQuestionIndex: currentIndex + 1,
+      isLastQuestion,
+      nextQuestionIndex: nextIndex,
       totalQuestions: lessonQuestions.length,
     };
   }

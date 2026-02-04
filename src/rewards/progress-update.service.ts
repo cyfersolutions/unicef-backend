@@ -63,7 +63,7 @@ export class ProgressUpdateService {
         where: {
           lessonQuestionId,
           vaccinatorId,
-          attemptNumber: 1, // You may want to calculate this based on existing attempts
+          attemptNumber: 1,
         },
       });
 
@@ -111,39 +111,33 @@ export class ProgressUpdateService {
         where: { lessonId: lesson.id },
       });
 
-      // Check if this question was already attempted (to avoid double counting)
-      const wasQuestionAlreadyAttempted = !!lessonQuestionProgress;
-
       if (!lessonProgress) {
-        // Count unique questions attempted so far (this is the first one)
-        const uniqueQuestionsAttempted = 1;
+        // First question submission for this lesson
         lessonProgress = manager.create(LessonProgress, {
           lessonId: lesson.id,
           vaccinatorId,
           attemptNumber: 1,
-          questionsCompleted: uniqueQuestionsAttempted,
+          questionsCompleted: 1, // First question submitted
           currentQuestionId: lessonQuestionId,
-          masteryLevel: totalQuestions > 0 ? (uniqueQuestionsAttempted / totalQuestions) * 100 : 0,
-          isCompleted: uniqueQuestionsAttempted >= totalQuestions,
+          masteryLevel: totalQuestions > 0 ? (1 / totalQuestions) * 100 : 0,
+          isCompleted: totalQuestions === 1, // Completed only if this is the only question
           xpEarned: questionXp, // Initial XP without rewards
           startDatetime: timestamp,
-          endDatetime: uniqueQuestionsAttempted >= totalQuestions ? timestamp : null,
+          endDatetime: totalQuestions === 1 ? timestamp : null,
         });
       } else {
-        // Increment questionsCompleted only if this question wasn't attempted before
-        if (!wasQuestionAlreadyAttempted) {
-          lessonProgress.questionsCompleted += 1;
-        }
+        // Always increment questionsCompleted every time a question is submitted
+        lessonProgress.questionsCompleted += 1;
         lessonProgress.xpEarned += questionXp; // Add question XP first
         lessonProgress.currentQuestionId = lessonQuestionId;
 
-        // Calculate mastery level based on unique questions attempted
+        // Calculate mastery level based on questions completed
         lessonProgress.masteryLevel = totalQuestions > 0 
           ? (lessonProgress.questionsCompleted / totalQuestions) * 100 
           : 0;
 
         // Check if lesson is completed (all questions attempted)
-        if (lessonProgress.questionsCompleted >= totalQuestions && !lessonProgress.isCompleted) {
+        if (lessonProgress.questionsCompleted >= totalQuestions) {
           lessonProgress.isCompleted = true;
           lessonProgress.endDatetime = timestamp;
         }
@@ -250,6 +244,86 @@ export class ProgressUpdateService {
 
       await manager.save(unitProgress);
       const isUnitNewlyCompleted = unitProgress.isCompleted && !wasUnitCompletedBefore;
+
+      // If unit was just completed, create progress for next unit in module
+      if (isUnitNewlyCompleted) {
+        // Get all units in the module ordered by orderNo
+        const moduleUnits = await manager.find(Unit, {
+          where: { moduleId: module.id },
+          order: { orderNo: 'ASC' },
+        });
+
+        // Find current unit index
+        const currentUnitIndex = moduleUnits.findIndex((u) => u.id === unit.id);
+        
+        // If there's a next unit, create progress for it and its first lesson
+        if (currentUnitIndex >= 0 && currentUnitIndex < moduleUnits.length - 1) {
+          const nextUnit = moduleUnits[currentUnitIndex + 1];
+          
+          // Check if unit progress already exists for next unit
+          const nextUnitProgress = await manager.findOne(UnitProgress, {
+            where: {
+              unitId: nextUnit.id,
+              vaccinatorId,
+              attemptNumber: 1,
+            },
+          });
+
+          // Create unit progress for next unit if it doesn't exist
+          if (!nextUnitProgress) {
+            const newUnitProgress = manager.create(UnitProgress, {
+              unitId: nextUnit.id,
+              vaccinatorId,
+              attemptNumber: 1,
+              lessonsCompleted: 0,
+              currentLessonId: null,
+              masteryLevel: 0,
+              isCompleted: false,
+              xpEarned: 0,
+              startDatetime: timestamp,
+            });
+            await manager.save(newUnitProgress);
+
+            // Get first lesson of the next unit
+            const firstLesson = await manager.findOne(Lesson, {
+              where: { unitId: nextUnit.id },
+              order: { orderNo: 'ASC' },
+            });
+
+            // Create lesson progress for first lesson if it exists
+            if (firstLesson) {
+              // Check if lesson progress already exists
+              const firstLessonProgress = await manager.findOne(LessonProgress, {
+                where: {
+                  lessonId: firstLesson.id,
+                  vaccinatorId,
+                  attemptNumber: 1,
+                },
+              });
+
+              // Create lesson progress for first lesson if it doesn't exist
+              if (!firstLessonProgress) {
+                const newLessonProgress = manager.create(LessonProgress, {
+                  lessonId: firstLesson.id,
+                  vaccinatorId,
+                  attemptNumber: 1,
+                  questionsCompleted: 0,
+                  currentQuestionId: null,
+                  masteryLevel: 0,
+                  isCompleted: false,
+                  xpEarned: 0,
+                  startDatetime: timestamp,
+                });
+                await manager.save(newLessonProgress);
+
+                // Update unit progress to point to first lesson
+                newUnitProgress.currentLessonId = firstLesson.id;
+                await manager.save(newUnitProgress);
+              }
+            }
+          }
+        }
+      }
 
       // 4. Update or create module_progress
       let moduleProgress = await manager.findOne(ModuleProgress, {

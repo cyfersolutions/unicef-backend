@@ -53,6 +53,16 @@ export class ModulesController {
     return this.modulesService.findAllWithProgress(user.userId);
   }
 
+  @Get('dashboard')
+  @UseGuards(JwtUserGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get dashboard data for current vaccinator (totalXp and current unit progress)' })
+  @ApiResponse({ status: 200, description: 'Dashboard data with totalXp and current unit information' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getDashboard(@CurrentUser() user: { userId: string; role: 'vaccinator' | 'supervisor' }) {
+    return this.modulesService.getDashboard(user.userId);
+  }
+
   @Get(':moduleId/units')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')

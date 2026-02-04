@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Module } from './entities/module.entity';
 import { ModuleProgress } from './entities/module-progress.entity';
+import { Unit } from '../units/entities/unit.entity';
+import { UnitProgress } from '../units/entities/unit-progress.entity';
+import { VaccinatorSummary } from '../users/entities/vaccinator-summary.entity';
 import { CreateModuleDto } from './dto/create-module.dto';
 import { UpdateModuleDto } from './dto/update-module.dto';
 
@@ -13,6 +16,12 @@ export class ModulesService {
     private moduleRepository: Repository<Module>,
     @InjectRepository(ModuleProgress)
     private moduleProgressRepository: Repository<ModuleProgress>,
+    @InjectRepository(Unit)
+    private unitRepository: Repository<Unit>,
+    @InjectRepository(UnitProgress)
+    private unitProgressRepository: Repository<UnitProgress>,
+    @InjectRepository(VaccinatorSummary)
+    private vaccinatorSummaryRepository: Repository<VaccinatorSummary>,
   ) {}
 
   private async shiftModuleOrderNumbers(targetOrderNo: number, excludeModuleId?: string) {
@@ -91,6 +100,7 @@ export class ModulesService {
 
     Object.assign(module, updateModuleDto);
     const updatedModule = await this.moduleRepository.save(module);
+    console.log('updatedModule', updatedModule);
     return this.findOne(updatedModule.id);
   }
 
@@ -161,5 +171,125 @@ export class ModulesService {
         totalLessons,
       };
     });
+  }
+
+  async getDashboard(vaccinatorId: string) {
+    // Get total XP from vaccinator summary
+    const summary = await this.vaccinatorSummaryRepository.findOne({
+      where: { vaccinatorId },
+    });
+    const totalXp = summary?.totalXp || 0;
+
+    // Get all module progress records for this vaccinator with module relation
+    const moduleProgresses = await this.moduleProgressRepository.find({
+      where: { vaccinatorId },
+      relations: ['module'],
+      order: { attemptNumber: 'DESC' },
+    });
+
+    // Group module progress by moduleId - prefer isCompleted false
+    const moduleProgressMap = new Map<string, ModuleProgress>();
+    for (const progress of moduleProgresses) {
+      const existing = moduleProgressMap.get(progress.moduleId);
+      if (!existing) {
+        moduleProgressMap.set(progress.moduleId, progress);
+      } else if (!progress.isCompleted && existing.isCompleted) {
+        moduleProgressMap.set(progress.moduleId, progress);
+      }
+    }
+
+    // Filter to get only incomplete module progress records
+    const incompleteModuleProgresses = Array.from(moduleProgressMap.values())
+      .filter((mp) => !mp.isCompleted)
+      .sort((a, b) => {
+        // Sort by module orderNo, then by createdAt
+        const orderA = a.module?.orderNo ?? 999999;
+        const orderB = b.module?.orderNo ?? 999999;
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        return (a.module?.createdAt?.getTime() || 0) - (b.module?.createdAt?.getTime() || 0);
+      });
+
+    // If no incomplete module progress found, return null for currentUnit
+    if (incompleteModuleProgresses.length === 0) {
+      return {
+        totalXp,
+        currentUnit: null,
+      };
+    }
+
+    // Get all unit progress records for this vaccinator
+    const unitProgresses = await this.unitProgressRepository.find({
+      where: { vaccinatorId },
+      order: { attemptNumber: 'DESC' },
+    });
+
+    // Group unit progress by unitId - prefer isCompleted false
+    const unitProgressMap = new Map<string, UnitProgress>();
+    for (const progress of unitProgresses) {
+      const existing = unitProgressMap.get(progress.unitId);
+      if (!existing) {
+        unitProgressMap.set(progress.unitId, progress);
+      } else if (!progress.isCompleted && existing.isCompleted) {
+        unitProgressMap.set(progress.unitId, progress);
+      }
+    }
+
+    // Find the first incomplete unit in the first incomplete module
+    let currentUnit: {
+      moduleId: string;
+      moduleOrderNo: number;
+      unitId: string;
+      unitOrderNo: number;
+      unitTitle: string;
+      lessonsCompleted: number;
+      totalLessons: number;
+    } | null = null;
+    
+    for (const moduleProgress of incompleteModuleProgresses) {
+      const module = moduleProgress.module;
+      if (!module) {
+        continue;
+      }
+
+      // Get all units for this module with their lessons
+      const units = await this.unitRepository.find({
+        where: { moduleId: module.id },
+        relations: ['lessons'],
+        order: { orderNo: 'ASC', createdAt: 'DESC' },
+      });
+
+      // Find first incomplete unit in this module
+      for (const unit of units) {
+        const unitProgress = unitProgressMap.get(unit.id);
+        // Skip if unit has no progress or is completed
+        if (!unitProgress || unitProgress.isCompleted) {
+          continue;
+        }
+
+        // Found the current unit in progress
+        const totalLessons = unit.lessons?.length || 0;
+        currentUnit = {
+          moduleId: module.id,
+          moduleOrderNo: module.orderNo || 0,
+          unitId: unit.id,
+          unitOrderNo: unit.orderNo || 0,
+          unitTitle: unit.title,
+          lessonsCompleted: unitProgress.lessonsCompleted,
+          totalLessons,
+        };
+        break;
+      }
+
+      if (currentUnit) {
+        break;
+      }
+    }
+
+    return {
+      totalXp,
+      currentUnit,
+    };
   }
 }

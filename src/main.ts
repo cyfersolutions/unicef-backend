@@ -13,6 +13,7 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
   });
+  
 
   // Enable class-validator to use NestJS dependency injection
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
