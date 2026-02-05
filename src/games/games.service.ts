@@ -414,8 +414,44 @@ export class GamesService {
         // Unit is completed only if all lessons AND all games are completed
         const isUnitCompleted = allLessonsCompleted && allGamesCompleted;
 
-        // If unit is completed, create progress for next unit
+        // If unit is completed, update unit_progress
         if (isUnitCompleted) {
+          const timestamp = new Date();
+
+          // Get or create unit progress
+          let unitProgress = await manager.findOne(UnitProgress, {
+            where: {
+              unitId: unit.id,
+              vaccinatorId,
+              attemptNumber: 1,
+            },
+          });
+
+          if (!unitProgress) {
+            // Create unit progress if it doesn't exist
+            unitProgress = manager.create(UnitProgress, {
+              unitId: unit.id,
+              vaccinatorId,
+              attemptNumber: 1,
+              lessonsCompleted: totalLessons,
+              currentLessonId: lesson.id,
+              masteryLevel: 100,
+              isCompleted: true,
+              xpEarned: 0,
+              startDatetime: timestamp,
+              endDatetime: timestamp,
+            });
+          } else {
+            // Update existing unit progress
+            unitProgress.lessonsCompleted = totalLessons;
+            unitProgress.masteryLevel = 100;
+            unitProgress.isCompleted = true;
+            unitProgress.endDatetime = timestamp;
+          }
+
+          await manager.save(unitProgress);
+
+          // Create progress for next unit
           // Get all units in the module ordered by orderNo
           const moduleUnits = await manager.find(Unit, {
             where: { moduleId: module.id },
