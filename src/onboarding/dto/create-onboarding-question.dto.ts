@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsArray, IsOptional, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsArray, IsOptional, IsInt, Min } from 'class-validator';
 
 export class CreateOnboardingQuestionDto {
   @ApiProperty({ description: 'Question text' })
@@ -18,5 +17,11 @@ export class CreateOnboardingQuestionDto {
   @IsString({ each: true })
   @IsNotEmpty()
   options: string[];
+
+  @ApiProperty({ description: 'Order number', required: false, example: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  orderNo?: number | null;
 }
 

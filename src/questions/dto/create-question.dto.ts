@@ -104,7 +104,7 @@ export class CreateQuestionDto {
   lessonId?: string | null;
 
   @ApiProperty({
-    description: 'Order number within the lesson (required if lessonId is provided)',
+    description: 'Order number within the lesson (optional - will be auto-calculated if not provided when lessonId is provided)',
     example: 1,
     required: false,
   })

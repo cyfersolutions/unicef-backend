@@ -15,6 +15,9 @@ export class OnboardingQuestion {
   @Column({ type: 'jsonb', nullable: false })
   options: string[]; // Array of option strings
 
+  @Column({ type: 'int', nullable: true, name: 'order_no' })
+  orderNo: number | null;
+
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
 

@@ -9,6 +9,9 @@ import { LessonProgress } from '../lessons/entities/lesson-progress.entity';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
+import { Game } from 'src/games/entities/game.entity';
+import { UnitGame } from 'src/games/entities/unit-game.entity';
+import { VaccinatorUnitGameProgress } from 'src/games/entities/vaccinator-unit-game-progress.entity';
 
 @Injectable()
 export class UnitsService {
@@ -23,6 +26,12 @@ export class UnitsService {
     private lessonRepository: Repository<Lesson>,
     @InjectRepository(LessonProgress)
     private lessonProgressRepository: Repository<LessonProgress>,
+    @InjectRepository(Game)
+    private gameRepository: Repository<Game>,
+    @InjectRepository(UnitGame)
+    private unitGameRepository: Repository<UnitGame>,
+    @InjectRepository(VaccinatorUnitGameProgress)
+    private vaccinatorUnitGameProgressRepository: Repository<VaccinatorUnitGameProgress>,
   ) {}
 
   private async shiftOrderNumbers(moduleId: string, targetOrderNo: number, excludeUnitId?: string) {
@@ -309,6 +318,30 @@ export class UnitsService {
 
     const unitIds = units.map((unit) => unit.id);
 
+    const unitGames = await this.unitGameRepository.find({
+      where: { unitId: In(unitIds) },
+      relations: ['game'],
+    });
+
+    // Get game progress for this vaccinator
+    const unitGameIds = unitGames.map((ug) => ug.id);
+    const gameProgresses = unitGameIds.length > 0
+      ? await this.vaccinatorUnitGameProgressRepository.find({
+          where: {
+            vaccinatorId,
+            unitGameId: In(unitGameIds),
+            isCompleted: true,
+          },
+        })
+      : [];
+    
+    // Create a map of unitGameId -> progress
+    const gameProgressMap = new Map<string, VaccinatorUnitGameProgress>();
+    gameProgresses.forEach((progress) => {
+      gameProgressMap.set(progress.unitGameId, progress);
+    });
+
+
     // Get unit progresses only for units in this module (avoid in-memory filtering + mismatches)
     const unitProgresses =
       unitIds.length > 0
@@ -397,6 +430,9 @@ export class UnitsService {
       // Map lessons with progress and total questions count
       const lessonsWithProgress = unitLessons.map((lesson) => {
         const lessonProgress = lessonProgressMap.get(lesson.id);
+
+
+
         return {
           ...lesson,
           progress: lessonProgress || null,
@@ -408,11 +444,20 @@ export class UnitsService {
 
       // console.log(lessonsWithProgress,'lessonsWithProgress')
 
+      // Map games with progress
+      const unitGamesWithProgress = unitGames
+        .filter((ug) => ug.unitId === unit.id)
+        .map((ug) => ({
+          ...ug,
+          progress: gameProgressMap.get(ug.id) || null,
+        }));
+
       return {
         ...unit,
         progress: unitProgress || null,
         isLocked: !unitProgress, // Locked if no progress exists
         lessons: lessonsWithProgress,
+        games: unitGamesWithProgress,
         totalLessons: unitLessons.length,
       };
     });

@@ -25,7 +25,13 @@ export class OnboardingService {
   async findAll(): Promise<OnboardingQuestion[]> {
     return await this.onboardingQuestionRepository.find({
       where: { isActive: true },
-      order: { createdAt: 'ASC' },
+      order: { orderNo: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  async findAllAdmin(): Promise<OnboardingQuestion[]> {
+    return await this.onboardingQuestionRepository.find({
+      order: { orderNo: 'ASC', createdAt: 'ASC' },
     });
   }
 
@@ -51,6 +57,12 @@ export class OnboardingService {
   async remove(id: string): Promise<void> {
     const question = await this.findOne(id);
     await this.onboardingQuestionRepository.remove(question);
+  }
+
+  async updateOrder(id: string, orderNo: number): Promise<OnboardingQuestion> {
+    const question = await this.findOne(id);
+    question.orderNo = orderNo;
+    return await this.onboardingQuestionRepository.save(question);
   }
 
   async submitResponse(

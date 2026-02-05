@@ -37,11 +37,6 @@ export class QuestionsService {
         throw new NotFoundException(`Lesson with id ${lessonId} not found`);
       }
 
-      // Validate orderNo is provided when lessonId is provided
-      if (orderNo === null || orderNo === undefined) {
-        throw new BadRequestException('Order number is required when lessonId is provided');
-      }
-
       // Check if question is already in this lesson
       const existing = await this.lessonQuestionRepository.findOne({
         where: { lessonId, questionId: savedQuestion.id },
@@ -51,20 +46,31 @@ export class QuestionsService {
         throw new BadRequestException('Question is already added to this lesson');
       }
 
+      // Auto-calculate orderNo if not provided
+      let finalOrderNo = orderNo;
+      if (finalOrderNo === null || finalOrderNo === undefined) {
+        // Get the last orderNo for this lesson
+        const lastLessonQuestion = await this.lessonQuestionRepository.findOne({
+          where: { lessonId },
+          order: { orderNo: 'DESC' },
+        });
+        finalOrderNo = lastLessonQuestion ? lastLessonQuestion.orderNo + 1 : 1;
+      }
+
       // Check if orderNo already exists for this lesson
       const existingOrder = await this.lessonQuestionRepository.findOne({
-        where: { lessonId, orderNo },
+        where: { lessonId, orderNo: finalOrderNo },
       });
 
       if (existingOrder) {
-        throw new BadRequestException(`Order number ${orderNo} already exists for this lesson`);
+        throw new BadRequestException(`Order number ${finalOrderNo} already exists for this lesson`);
       }
 
       // Create lesson_question relationship
       const lessonQuestion = this.lessonQuestionRepository.create({
         lessonId,
         questionId: savedQuestion.id,
-        orderNo,
+        orderNo: finalOrderNo,
       });
 
       await this.lessonQuestionRepository.save(lessonQuestion);

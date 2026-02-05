@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, Index, OneToMany } from 'typeorm';
 import { Game } from './game.entity';
 import { Unit } from '../../units/entities/unit.entity';
 import { Lesson } from '../../lessons/entities/lesson.entity';
+import { VaccinatorUnitGameProgress } from './vaccinator-unit-game-progress.entity';
 
 @Entity('unit_games')
 @Index(['gameId', 'unitId'])
@@ -33,6 +34,9 @@ export class UnitGame {
   @ManyToOne(() => Lesson, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'lesson_id' })
   lesson: Lesson;
+
+  @OneToMany(() => VaccinatorUnitGameProgress, (vaccinatorUnitGameProgress) => vaccinatorUnitGameProgress.unitGame)
+  vaccinatorUnitGameProgress: VaccinatorUnitGameProgress[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt: Date;

@@ -11,6 +11,8 @@ import { WrongQuestion } from '../questions/entities/wrong-question.entity';
 import { RewardCalculationService, CalculatedRewards } from './reward-calculation.service';
 import { Lesson } from 'src/lessons/entities/lesson.entity';
 import { Unit } from 'src/units/entities/unit.entity';
+import { UnitGame } from '../games/entities/unit-game.entity';
+import { VaccinatorUnitGameProgress } from '../games/entities/vaccinator-unit-game-progress.entity';
 
 export interface UpdateProgressInput {
   lessonQuestionId: string;
@@ -235,8 +237,34 @@ export class ProgressUpdateService {
           ? (unitProgress.lessonsCompleted / totalLessons) * 100 
           : 0;
 
-        // Check if unit is completed
-        if (unitProgress.lessonsCompleted >= totalLessons) {
+        // Check if all lessons are completed
+        const allLessonsCompleted = unitProgress.lessonsCompleted >= totalLessons;
+
+        // Check if all unit games are completed (if any exist)
+        const unitGames = await manager.find(UnitGame, {
+          where: { unitId: unit.id },
+        });
+
+        let allGamesCompleted = true;
+        if (unitGames.length > 0) {
+          // Check if all unit games have completed progress for this vaccinator
+          for (const unitGame of unitGames) {
+            const gameProgress = await manager.findOne(VaccinatorUnitGameProgress, {
+              where: {
+                unitGameId: unitGame.id,
+                vaccinatorId,
+                isCompleted: true,
+              },
+            });
+            if (!gameProgress) {
+              allGamesCompleted = false;
+              break;
+            }
+          }
+        }
+
+        // Unit is completed only if all lessons AND all games are completed
+        if (allLessonsCompleted && allGamesCompleted) {
           unitProgress.isCompleted = true;
           unitProgress.endDatetime = timestamp;
         }

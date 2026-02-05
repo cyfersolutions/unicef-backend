@@ -22,7 +22,7 @@ import { GamesController } from './games.controller';
   ],
   controllers: [GamesController],
   providers: [GamesService],
-  exports: [GamesService],
+  exports: [GamesService], // Only export providers/services, not entities
 })
 export class GamesModule {}
 

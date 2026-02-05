@@ -14,6 +14,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@ne
 import { OnboardingService } from './onboarding.service';
 import { CreateOnboardingQuestionDto } from './dto/create-onboarding-question.dto';
 import { UpdateOnboardingQuestionDto } from './dto/update-onboarding-question.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 import { SubmitOnboardingResponseDto } from './dto/submit-onboarding-response.dto';
 import { SubmitOnboardingResponsesDto } from './dto/submit-onboarding-responses.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -45,10 +46,22 @@ export class OnboardingController {
   @UseGuards(JwtUserGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get all active onboarding questions (authenticated users)' })
-  @ApiResponse({ status: 200, description: 'List of onboarding questions' })
+  @ApiResponse({ status: 200, description: 'List of onboarding questions sorted by orderNo' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   findAll() {
     return this.onboardingService.findAll();
+  }
+
+  @Get('questions/admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles('superadmin', 'admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all onboarding questions including inactive (admin only)' })
+  @ApiResponse({ status: 200, description: 'List of all onboarding questions sorted by orderNo' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  findAllAdmin() {
+    return this.onboardingService.findAllAdmin();
   }
 
   @Get('questions/:id')
@@ -89,6 +102,20 @@ export class OnboardingController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   remove(@Param('id') id: string) {
     return this.onboardingService.remove(id);
+  }
+
+  @Patch('questions/:id/order')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireRoles('superadmin', 'admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update onboarding question order number (superadmin/admin only)' })
+  @ApiParam({ name: 'id', description: 'Question UUID' })
+  @ApiResponse({ status: 200, description: 'Order number updated successfully' })
+  @ApiResponse({ status: 404, description: 'Question not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  updateOrder(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
+    return this.onboardingService.updateOrder(id, updateOrderDto.orderNo);
   }
 
   @Post('responses')
