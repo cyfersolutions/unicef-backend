@@ -150,46 +150,55 @@ export class ProgressUpdateService {
       // Check if lesson was just completed in this transaction
       const isLessonNewlyCompleted = lessonProgress.isCompleted && !wasLessonCompletedBefore;
 
-      // If lesson was just completed, create progress for next lesson in unit
+      // If lesson was just completed, check if there are unit games for this lesson
+      // If there are games, don't unlock next lesson until games are completed
       let nextLessonId: string | null = null;
       if (isLessonNewlyCompleted) {
-        // Get all lessons in the unit ordered by orderNo
-        const unitLessons = await manager.find(Lesson, {
-          where: { unitId: unit.id },
-          order: { orderNo: 'ASC' },
+        // Check if there are any unit games associated with this lesson
+        const lessonUnitGames = await manager.find(UnitGame, {
+          where: { lessonId: lesson.id },
         });
 
-        // Find current lesson index
-        const currentLessonIndex = unitLessons.findIndex((l) => l.id === lesson.id);
-        
-        // If there's a next lesson, create progress for it
-        if (currentLessonIndex >= 0 && currentLessonIndex < unitLessons.length - 1) {
-          const nextLesson = unitLessons[currentLessonIndex + 1];
-          nextLessonId = nextLesson.id;
-          
-          // Check if progress already exists for next lesson
-          const nextLessonProgress = await manager.findOne(LessonProgress, {
-            where: {
-              lessonId: nextLesson.id,
-              vaccinatorId,
-              attemptNumber: 1,
-            },
+        // Only unlock next lesson if there are no games for this lesson
+        if (lessonUnitGames.length === 0) {
+          // Get all lessons in the unit ordered by orderNo
+          const unitLessons = await manager.find(Lesson, {
+            where: { unitId: unit.id },
+            order: { orderNo: 'ASC' },
           });
 
-          // Create progress for next lesson if it doesn't exist
-          if (!nextLessonProgress) {
-            const newLessonProgress = manager.create(LessonProgress, {
-              lessonId: nextLesson.id,
-              vaccinatorId,
-              attemptNumber: 1,
-              questionsCompleted: 0,
-              currentQuestionId: null,
-              masteryLevel: 0,
-              isCompleted: false,
-              xpEarned: 0,
-              startDatetime: timestamp,
+          // Find current lesson index
+          const currentLessonIndex = unitLessons.findIndex((l) => l.id === lesson.id);
+          
+          // If there's a next lesson, create progress for it
+          if (currentLessonIndex >= 0 && currentLessonIndex < unitLessons.length - 1) {
+            const nextLesson = unitLessons[currentLessonIndex + 1];
+            nextLessonId = nextLesson.id;
+            
+            // Check if progress already exists for next lesson
+            const nextLessonProgress = await manager.findOne(LessonProgress, {
+              where: {
+                lessonId: nextLesson.id,
+                vaccinatorId,
+                attemptNumber: 1,
+              },
             });
-            await manager.save(newLessonProgress);
+
+            // Create progress for next lesson if it doesn't exist
+            if (!nextLessonProgress) {
+              const newLessonProgress = manager.create(LessonProgress, {
+                lessonId: nextLesson.id,
+                vaccinatorId,
+                attemptNumber: 1,
+                questionsCompleted: 0,
+                currentQuestionId: null,
+                masteryLevel: 0,
+                isCompleted: false,
+                xpEarned: 0,
+                startDatetime: timestamp,
+              });
+              await manager.save(newLessonProgress);
+            }
           }
         }
       }
