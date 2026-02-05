@@ -37,10 +37,12 @@ export class QuestionsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get all questions (authenticated users)' })
+  @ApiQuery({ name: 'noLessons', required: false, type: Boolean, description: 'If true, only return questions not linked to any lesson' })
   @ApiResponse({ status: 200, description: 'List of questions' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findAll() {
-    return this.questionsService.findAll();
+  findAll(@Query('noLessons') noLessons?: string) {
+    const filterNoLessons = noLessons === 'true';
+    return this.questionsService.findAll(filterNoLessons);
   }
 
   @Get(':id')

@@ -79,7 +79,7 @@ export class QuestionsService {
     return savedQuestion;
   }
 
-  async findAll() {
+  async findAll(noLessons?: boolean) {
     const questions = await this.questionRepository.find({
       relations: ['persona'],
       order: { createdAt: 'DESC' },
@@ -106,7 +106,7 @@ export class QuestionsService {
     }
 
     // Map questions with lesson information
-    return questions.map((question) => {
+    let mappedQuestions = questions.map((question) => {
       const lessonInfo = questionLessonMap.get(question.id);
       return {
         ...question,
@@ -114,6 +114,13 @@ export class QuestionsService {
         lesson: lessonInfo?.lesson || null,
       };
     });
+
+    // Filter out questions that are linked to lessons if noLessons is true
+    if (noLessons === true) {
+      mappedQuestions = mappedQuestions.filter((question) => question.lessonId === null);
+    }
+
+    return mappedQuestions;
   }
 
   async findOne(id: string) {
