@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { VaccinatorUnitGameProgress } from './entities/vaccinator-unit-game-progress.entity';
 import { UnitGame } from './entities/unit-game.entity';
 import { Game } from './entities/game.entity';
 import { Unit } from '../units/entities/unit.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { Vaccinator } from '../users/entities/vaccinator.entity';
+import { UnitProgress } from '../units/entities/unit-progress.entity';
+import { LessonProgress } from '../lessons/entities/lesson-progress.entity';
 import { SubmitGameProgressDto } from './dto/submit-game-progress.dto';
 import { SubmitGameCompletionDto } from './dto/submit-game-completion.dto';
 import { CreateGameDto } from './dto/create-game.dto';
@@ -28,6 +30,11 @@ export class GamesService {
     private lessonRepository: Repository<Lesson>,
     @InjectRepository(Vaccinator)
     private vaccinatorRepository: Repository<Vaccinator>,
+    @InjectRepository(UnitProgress)
+    private unitProgressRepository: Repository<UnitProgress>,
+    @InjectRepository(LessonProgress)
+    private lessonProgressRepository: Repository<LessonProgress>,
+    private dataSource: DataSource,
   ) {}
 
   async submitGameProgress(dto: SubmitGameProgressDto) {
@@ -252,105 +259,282 @@ export class GamesService {
   }
 
   async submitGameCompletion(dto: SubmitGameCompletionDto, vaccinatorId: string) {
-    // Validate unit game exists
-    const unitGame = await this.unitGameRepository.findOne({
-      where: { id: dto.unitGameId },
-      relations: ['game', 'unit', 'lesson'],
-    });
-
-    if (!unitGame) {
-      throw new NotFoundException(`Unit game with ID ${dto.unitGameId} not found`);
-    }
-
-    // Validate vaccinator exists
-    const vaccinator = await this.vaccinatorRepository.findOne({
-      where: { id: vaccinatorId },
-    });
-
-    if (!vaccinator) {
-      throw new NotFoundException(`Vaccinator with ID ${vaccinatorId} not found`);
-    }
-
-    // Check if score meets passing score
-    const isPassed = dto.score >= unitGame.passingScore;
-
-    // Calculate XP earned
-    const xpEarned = this.calculateXpEarned(dto.score, unitGame.passingScore, isPassed);
-
-    // Check if this attempt already exists
-    const existingProgress = await this.vaccinatorUnitGameProgressRepository.findOne({
-      where: {
-        unitGameId: dto.unitGameId,
-        vaccinatorId,
-        attempt: dto.attempt,
-      },
-    });
-
-    let gameProgress: VaccinatorUnitGameProgress;
-
-    if (existingProgress) {
-      // Update existing progress
-      existingProgress.score = dto.score;
-      existingProgress.ratings = dto.ratings ?? null;
-      existingProgress.otherFields = dto.otherFields ?? null;
-      existingProgress.isPassed = isPassed;
-      existingProgress.isCompleted = true; // Always set to true on completion
-      existingProgress.xpEarned = xpEarned;
-      gameProgress = await this.vaccinatorUnitGameProgressRepository.save(existingProgress);
-    } else {
-      // Create new progress
-      gameProgress = this.vaccinatorUnitGameProgressRepository.create({
-        unitGameId: dto.unitGameId,
-        vaccinatorId,
-        score: dto.score,
-        attempt: dto.attempt,
-        ratings: dto.ratings ?? null,
-        otherFields: dto.otherFields ?? null,
-        isPassed: isPassed,
-        isCompleted: true, // Always set to true on completion
-        xpEarned: xpEarned,
+    // Use transaction for atomic updates
+    return await this.dataSource.transaction(async (manager) => {
+      // Validate unit game exists with module relation
+      const unitGame = await manager.findOne(UnitGame, {
+        where: { id: dto.unitGameId },
+        relations: ['game', 'unit', 'unit.module', 'lesson'],
       });
 
-      gameProgress = await this.vaccinatorUnitGameProgressRepository.save(gameProgress);
-    }
+      if (!unitGame) {
+        throw new NotFoundException(`Unit game with ID ${dto.unitGameId} not found`);
+      }
 
-    // Load relations for response
-    const savedProgress = await this.vaccinatorUnitGameProgressRepository.findOne({
-      where: { id: gameProgress.id },
-      relations: ['unitGame', 'unitGame.game', 'unitGame.unit', 'vaccinator'],
+      // Validate vaccinator exists
+      const vaccinator = await manager.findOne(Vaccinator, {
+        where: { id: vaccinatorId },
+      });
+
+      if (!vaccinator) {
+        throw new NotFoundException(`Vaccinator with ID ${vaccinatorId} not found`);
+      }
+
+      const lesson = unitGame.lesson;
+      const unit = unitGame.unit;
+      const module = unit.module;
+
+      // Check if score meets passing score
+      const isPassed = dto.score >= unitGame.passingScore;
+
+      // Calculate XP earned
+      const xpEarned = this.calculateXpEarned(dto.score, unitGame.passingScore, isPassed);
+
+      // Check if this attempt already exists
+      const existingProgress = await manager.findOne(VaccinatorUnitGameProgress, {
+        where: {
+          unitGameId: dto.unitGameId,
+          vaccinatorId,
+          attempt: dto.attempt,
+        },
+      });
+
+      let gameProgress: VaccinatorUnitGameProgress;
+
+      if (existingProgress) {
+        // Update existing progress
+        existingProgress.score = dto.score;
+        existingProgress.ratings = dto.ratings ?? null;
+        existingProgress.otherFields = dto.otherFields ?? null;
+        existingProgress.isPassed = isPassed;
+        existingProgress.isCompleted = true; // Always set to true on completion
+        existingProgress.xpEarned = xpEarned;
+        gameProgress = await manager.save(existingProgress);
+      } else {
+        // Create new progress
+        gameProgress = manager.create(VaccinatorUnitGameProgress, {
+          unitGameId: dto.unitGameId,
+          vaccinatorId,
+          score: dto.score,
+          attempt: dto.attempt,
+          ratings: dto.ratings ?? null,
+          otherFields: dto.otherFields ?? null,
+          isPassed: isPassed,
+          isCompleted: true, // Always set to true on completion
+          xpEarned: xpEarned,
+        });
+
+        gameProgress = await manager.save(gameProgress);
+      }
+
+      // Check if this lesson is the last lesson of the unit (by orderNo)
+      const unitLessons = await manager.find(Lesson, {
+        where: { unitId: unit.id },
+        order: { orderNo: 'ASC' },
+      });
+
+      const currentLessonIndex = unitLessons.findIndex((l) => l.id === lesson.id);
+      const isLastLesson = currentLessonIndex >= 0 && currentLessonIndex === unitLessons.length - 1;
+
+      // If this is NOT the last lesson, create progress for next lesson in same unit
+      if (!isLastLesson && currentLessonIndex >= 0 && currentLessonIndex < unitLessons.length - 1) {
+        const nextLesson = unitLessons[currentLessonIndex + 1];
+        const timestamp = new Date();
+
+        // Check if lesson progress already exists for next lesson
+        const nextLessonProgress = await manager.findOne(LessonProgress, {
+          where: {
+            lessonId: nextLesson.id,
+            vaccinatorId,
+            attemptNumber: 1,
+          },
+        });
+
+        // Create lesson progress for next lesson if it doesn't exist
+        if (!nextLessonProgress) {
+          const newLessonProgress = manager.create(LessonProgress, {
+            lessonId: nextLesson.id,
+            vaccinatorId,
+            attemptNumber: 1,
+            questionsCompleted: 0,
+            currentQuestionId: null,
+            masteryLevel: 0,
+            isCompleted: false,
+            xpEarned: 0,
+            startDatetime: timestamp,
+          });
+          await manager.save(newLessonProgress);
+        }
+      }
+
+      // If this is the last lesson, check if unit is completed
+      if (isLastLesson) {
+        // Get total lessons count
+        const totalLessons = unitLessons.length;
+
+        // Check if all lessons are completed by checking lesson_progress entries
+        let allLessonsCompleted = true;
+        for (const lesson of unitLessons) {
+          const lessonProgress = await manager.findOne(LessonProgress, {
+            where: {
+              lessonId: lesson.id,
+              vaccinatorId,
+              attemptNumber: 1,
+              isCompleted: true,
+            },
+          });
+          if (!lessonProgress) {
+            allLessonsCompleted = false;
+            break;
+          }
+        }
+
+        // Check if all unit games are completed
+        const unitGames = await manager.find(UnitGame, {
+          where: { unitId: unit.id },
+        });
+
+        let allGamesCompleted = true;
+        if (unitGames.length > 0) {
+          for (const ug of unitGames) {
+            const gameProg = await manager.findOne(VaccinatorUnitGameProgress, {
+              where: {
+                unitGameId: ug.id,
+                vaccinatorId,
+                isCompleted: true,
+              },
+            });
+            if (!gameProg) {
+              allGamesCompleted = false;
+              break;
+            }
+          }
+        }
+
+        // Unit is completed only if all lessons AND all games are completed
+        const isUnitCompleted = allLessonsCompleted && allGamesCompleted;
+
+        // If unit is completed, create progress for next unit
+        if (isUnitCompleted) {
+          // Get all units in the module ordered by orderNo
+          const moduleUnits = await manager.find(Unit, {
+            where: { moduleId: module.id },
+            order: { orderNo: 'ASC' },
+          });
+
+          // Find current unit index
+          const currentUnitIndex = moduleUnits.findIndex((u) => u.id === unit.id);
+
+          // If there's a next unit, create progress for it and its first lesson
+          if (currentUnitIndex >= 0 && currentUnitIndex < moduleUnits.length - 1) {
+            const nextUnit = moduleUnits[currentUnitIndex + 1];
+            const timestamp = new Date();
+
+            // Check if unit progress already exists for next unit
+            const nextUnitProgress = await manager.findOne(UnitProgress, {
+              where: {
+                unitId: nextUnit.id,
+                vaccinatorId,
+                attemptNumber: 1,
+              },
+            });
+
+            // Create unit progress for next unit if it doesn't exist
+            if (!nextUnitProgress) {
+              const newUnitProgress = manager.create(UnitProgress, {
+                unitId: nextUnit.id,
+                vaccinatorId,
+                attemptNumber: 1,
+                lessonsCompleted: 0,
+                currentLessonId: null,
+                masteryLevel: 0,
+                isCompleted: false,
+                xpEarned: 0,
+                startDatetime: timestamp,
+              });
+              await manager.save(newUnitProgress);
+
+              // Get first lesson of the next unit
+              const firstLesson = await manager.findOne(Lesson, {
+                where: { unitId: nextUnit.id },
+                order: { orderNo: 'ASC' },
+              });
+
+              // Create lesson progress for first lesson if it exists
+              if (firstLesson) {
+                // Check if lesson progress already exists
+                const firstLessonProgress = await manager.findOne(LessonProgress, {
+                  where: {
+                    lessonId: firstLesson.id,
+                    vaccinatorId,
+                    attemptNumber: 1,
+                  },
+                });
+
+                // Create lesson progress for first lesson if it doesn't exist
+                if (!firstLessonProgress) {
+                  const newLessonProgress = manager.create(LessonProgress, {
+                    lessonId: firstLesson.id,
+                    vaccinatorId,
+                    attemptNumber: 1,
+                    questionsCompleted: 0,
+                    currentQuestionId: null,
+                    masteryLevel: 0,
+                    isCompleted: false,
+                    xpEarned: 0,
+                    startDatetime: timestamp,
+                  });
+                  await manager.save(newLessonProgress);
+
+                  // Update unit progress to point to first lesson
+                  newUnitProgress.currentLessonId = firstLesson.id;
+                  await manager.save(newUnitProgress);
+                }
+              }
+            }
+          }
+          // If it's the last unit, don't do anything (similar to question submissions)
+        }
+      }
+
+      // Load relations for response
+      const savedProgress = await manager.findOne(VaccinatorUnitGameProgress, {
+        where: { id: gameProgress.id },
+        relations: ['unitGame', 'unitGame.game', 'unitGame.unit', 'unitGame.lesson', 'vaccinator'],
+      });
+
+      return {
+        success: true,
+        message: 'Game completed successfully',
+        data: {
+          id: savedProgress?.id,
+          unitGameId: savedProgress?.unitGameId,
+          vaccinatorId: savedProgress?.vaccinatorId,
+          score: savedProgress?.score,
+          attempt: savedProgress?.attempt,
+          ratings: savedProgress?.ratings,
+          otherFields: savedProgress?.otherFields,
+          isCompleted: savedProgress?.isCompleted,
+          isPassed: savedProgress?.isPassed,
+          xpEarned: savedProgress?.xpEarned,
+          game: {
+            id: savedProgress?.unitGame?.game?.id,
+            title: savedProgress?.unitGame?.game?.title,
+            url: savedProgress?.unitGame?.game?.url,
+          },
+          unit: {
+            id: savedProgress?.unitGame?.unit?.id,
+            title: savedProgress?.unitGame?.unit?.title,
+          },
+          lesson: {
+            id: savedProgress?.unitGame?.lesson?.id,
+            title: savedProgress?.unitGame?.lesson?.title,
+          },
+          createdAt: savedProgress?.createdAt,
+          updatedAt: savedProgress?.updatedAt,
+        },
+      };
     });
-
-    return {
-      success: true,
-      message: 'Game completed successfully',
-      data: {
-        id: savedProgress?.id,
-        unitGameId: savedProgress?.unitGameId,
-        vaccinatorId: savedProgress?.vaccinatorId,
-        score: savedProgress?.score,
-        attempt: savedProgress?.attempt,
-        ratings: savedProgress?.ratings,
-        otherFields: savedProgress?.otherFields,
-        isCompleted: savedProgress?.isCompleted,
-        isPassed: savedProgress?.isPassed,
-        xpEarned: savedProgress?.xpEarned,
-        game: {
-          id: savedProgress?.unitGame?.game?.id,
-          title: savedProgress?.unitGame?.game?.title,
-          url: savedProgress?.unitGame?.game?.url,
-        },
-        unit: {
-          id: savedProgress?.unitGame?.unit?.id,
-          title: savedProgress?.unitGame?.unit?.title,
-        },
-        lesson: {
-          id: savedProgress?.unitGame?.lesson?.id,
-          title: savedProgress?.unitGame?.lesson?.title,
-        },
-        createdAt: savedProgress?.createdAt,
-        updatedAt: savedProgress?.updatedAt,
-      },
-    };
   }
 
   private calculateXpEarned(score: number, passingScore: number, isPassed: boolean): number {

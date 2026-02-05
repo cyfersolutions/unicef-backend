@@ -6,6 +6,8 @@ import { VaccinatorUnitGameProgress } from './entities/vaccinator-unit-game-prog
 import { Unit } from '../units/entities/unit.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { Vaccinator } from '../users/entities/vaccinator.entity';
+import { UnitProgress } from '../units/entities/unit-progress.entity';
+import { LessonProgress } from '../lessons/entities/lesson-progress.entity';
 import { GamesService } from './games.service';
 import { GamesController } from './games.controller';
 
@@ -18,6 +20,8 @@ import { GamesController } from './games.controller';
       Unit,
       Lesson,
       Vaccinator,
+      UnitProgress,
+      LessonProgress,
     ]),
   ],
   controllers: [GamesController],
