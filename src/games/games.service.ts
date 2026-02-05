@@ -9,6 +9,7 @@ import { Lesson } from '../lessons/entities/lesson.entity';
 import { Vaccinator } from '../users/entities/vaccinator.entity';
 import { UnitProgress } from '../units/entities/unit-progress.entity';
 import { LessonProgress } from '../lessons/entities/lesson-progress.entity';
+import { ModuleProgress } from '../modules/entities/module-progress.entity';
 import { SubmitGameProgressDto } from './dto/submit-game-progress.dto';
 import { SubmitGameCompletionDto } from './dto/submit-game-completion.dto';
 import { CreateGameDto } from './dto/create-game.dto';
@@ -34,6 +35,8 @@ export class GamesService {
     private unitProgressRepository: Repository<UnitProgress>,
     @InjectRepository(LessonProgress)
     private lessonProgressRepository: Repository<LessonProgress>,
+    @InjectRepository(ModuleProgress)
+    private moduleProgressRepository: Repository<ModuleProgress>,
     private dataSource: DataSource,
   ) {}
 
@@ -427,6 +430,8 @@ export class GamesService {
             },
           });
 
+          const wasUnitCompletedBefore = unitProgress?.isCompleted ?? false;
+
           if (!unitProgress) {
             // Create unit progress if it doesn't exist
             unitProgress = manager.create(UnitProgress, {
@@ -450,6 +455,53 @@ export class GamesService {
           }
 
           await manager.save(unitProgress);
+          const isUnitNewlyCompleted = unitProgress.isCompleted && !wasUnitCompletedBefore;
+
+          // Update module_progress
+          let moduleProgress = await manager.findOne(ModuleProgress, {
+            where: {
+              moduleId: module.id,
+              vaccinatorId,
+              attemptNumber: 1,
+            },
+          });
+
+          if (!moduleProgress) {
+            // Create module progress if it doesn't exist
+            moduleProgress = manager.create(ModuleProgress, {
+              moduleId: module.id,
+              vaccinatorId,
+              attemptNumber: 1,
+              unitsCompleted: isUnitNewlyCompleted ? 1 : 0,
+              currentUnitId: unit.id,
+              masteryLevel: isUnitNewlyCompleted ? 100 : 0,
+              isCompleted: false,
+              xpEarned: 0,
+              startDatetime: timestamp,
+            });
+          } else {
+            // Update existing module progress
+            if (isUnitNewlyCompleted) {
+              moduleProgress.unitsCompleted += 1;
+            }
+            moduleProgress.currentUnitId = unit.id;
+
+            // Calculate mastery level
+            const totalUnits = await manager.count(Unit, {
+              where: { moduleId: module.id },
+            });
+            moduleProgress.masteryLevel = totalUnits > 0 
+              ? (moduleProgress.unitsCompleted / totalUnits) * 100 
+              : 0;
+
+            // Check if module is completed
+            if (moduleProgress.unitsCompleted >= totalUnits) {
+              moduleProgress.isCompleted = true;
+              moduleProgress.endDatetime = timestamp;
+            }
+          }
+
+          await manager.save(moduleProgress);
 
           // Create progress for next unit
           // Get all units in the module ordered by orderNo

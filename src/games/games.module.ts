@@ -8,6 +8,7 @@ import { Lesson } from '../lessons/entities/lesson.entity';
 import { Vaccinator } from '../users/entities/vaccinator.entity';
 import { UnitProgress } from '../units/entities/unit-progress.entity';
 import { LessonProgress } from '../lessons/entities/lesson-progress.entity';
+import { ModuleProgress } from '../modules/entities/module-progress.entity';
 import { GamesService } from './games.service';
 import { GamesController } from './games.controller';
 
@@ -22,6 +23,7 @@ import { GamesController } from './games.controller';
       Vaccinator,
       UnitProgress,
       LessonProgress,
+      ModuleProgress,
     ]),
   ],
   controllers: [GamesController],
