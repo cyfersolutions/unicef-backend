@@ -13,7 +13,7 @@ export class SubmitGameCompletionDto {
 
   @ApiProperty({ description: 'Attempt number', minimum: 1 })
   @IsInt()
-  @Min(1)
+  @Min(0)
   attempt: number;
 
   @ApiProperty({ description: 'Game ratings (1-5)', required: false, minimum: 1, maximum: 5 })
